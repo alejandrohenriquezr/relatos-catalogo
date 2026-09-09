@@ -1,13 +1,8 @@
 import {notFound} from "next/navigation";
 import {OPERATION_CONFIG_DEFAULTS} from "../../../lib/operation-config";
 
-const vitalOperations = new Map(
-  OPERATION_CONFIG_DEFAULTS.filter(([operation]) =>
-    ["births", "fertility", "deaths", "mortality", "unions"].includes(operation),
-  ),
-);
-
-vitalOperations.set("auc", "Acuerdos de unión civil");
+const operationLabels = new Map(OPERATION_CONFIG_DEFAULTS);
+operationLabels.set("auc", "Acuerdos de unión civil");
 
 export default async function AnalysisPage({
   params,
@@ -15,7 +10,7 @@ export default async function AnalysisPage({
   params: Promise<{operation: string}>;
 }) {
   const {operation} = await params;
-  const label = vitalOperations.get(operation);
+  const label = operationLabels.get(operation);
   if (!label) notFound();
 
   return (
