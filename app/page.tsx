@@ -10056,6 +10056,42 @@ function LaborPopulationDendrogram({
   );
 }
 
+function CatalogPublicationHighlight() {
+  const [publication, setPublication] = useState<{
+    label: string;
+    publicationTitle: string;
+    publicationDate: string | null;
+    publicationUrl: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/catalog/publications", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        const first = payload?.publications?.[0];
+        if (first) setPublication(first);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  if (!publication) return null;
+  return (
+    <section className="catalog-publication-highlight" aria-label="Publicación más reciente">
+      <div>
+        <span className="eyebrow">Publicación más reciente</span>
+        <h2>{publication.publicationTitle}</h2>
+        <p>
+          Esta publicación reúne los resultados más recientes de {publication.label.toLowerCase()}.
+          Permite revisar su evolución y distribución en Chile a partir de la información oficial disponible.
+        </p>
+        <a href={publication.publicationUrl} target="_blank" rel="noreferrer">
+          Ver publicación oficial
+        </a>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const [remoteEne, setRemoteEne] = useState<EneRemoteData | null>(null);
   const data = useMemo(() => {
@@ -10627,6 +10663,7 @@ export default function Home() {
     );
   return (
     <main>
+      <CatalogPublicationHighlight />
       <header>
         <div className="topbar">
           <div className="brand">
