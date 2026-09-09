@@ -10056,6 +10056,51 @@ function LaborPopulationDendrogram({
   );
 }
 
+function CatalogExploreSidebar() {
+  const groups = [
+    {
+      label: "Mercado laboral",
+      items: [["ene", "Encuesta Nacional de Empleo"], ["informality", "Informalidad laboral"]],
+    },
+    {
+      label: "Precios",
+      items: [["ipc", "Índice de Precios al Consumidor"], ["ipp", "Índice de Precios al Productor"]],
+    },
+    {
+      label: "Demografía y población",
+      items: [["births", "Nacimientos"], ["fertility", "Fecundidad"], ["deaths", "Defunciones"], ["mortality", "Mortalidad"], ["unions", "Matrimonios y AUC"], ["auc", "Acuerdos de unión civil"]],
+    },
+    {
+      label: "Sociedad y condiciones de vida",
+      items: [["enusc", "ENUSC"], ["police", "Estadísticas policiales"]],
+    },
+    {
+      label: "Economía y servicios",
+      items: [["permits", "Permisos de edificación"], ["energy", "Producción de electricidad, gas y agua"], ["industry", "Índice de Producción Industrial"], ["commerce", "Comercio"], ["tourism", "Turismo"], ["supermarkets", "Supermercados"], ["businessDemography", "Demografía de empresas"]],
+    },
+  ] as const;
+
+  return (
+    <aside className="catalog-explore-sidebar">
+      <details>
+        <summary>Explorar por tema</summary>
+        <nav aria-label="Operaciones estadísticas">
+          {groups.map((group) => (
+            <section key={group.label}>
+              <h2>{group.label}</h2>
+              {group.items.map(([operation, label]) => (
+                <a key={operation} href={`/analisis/${operation}`}>
+                  {label}
+                </a>
+              ))}
+            </section>
+          ))}
+        </nav>
+      </details>
+    </aside>
+  );
+}
+
 function CatalogPublicationHighlight() {
   const [publication, setPublication] = useState<{
     label: string;
@@ -10663,6 +10708,7 @@ export default function Home() {
     );
   return (
     <main>
+      <CatalogExploreSidebar />
       <CatalogPublicationHighlight />
       <header>
         <div className="topbar">
