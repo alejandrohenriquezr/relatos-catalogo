@@ -28,8 +28,12 @@ import mortalitySnapshot from "../../../../../public/mortality-data.json";
 import unionsSnapshot from "../../../../../public/unions-data.json";
 import enuscSnapshot from "../../../../../public/enusc-initial.json";
 import policeSnapshot from "../../../../../public/police-data.json";
-import businessDemographySnapshot from "../../../../../public/sdmx/demografia-empresas-observations.json";
 import {operationCatalog, recordsToSdmxCsv, type OperationCode} from "../../../../../lib/operation-sdmx";
+
+// El catálogo se alimenta desde la caché pública. La instantánea binaria
+// anterior no se importa durante la compilación para evitar que un archivo
+// corrupto bloquee todo el despliegue.
+const businessDemographySnapshot: unknown[] = [];
 
 const LEGACY_DATAFLOW = "INE.GOB.CL,DF_ENE_IND_PRINCIPALES,1.0/all";
 
