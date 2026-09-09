@@ -1,5 +1,3 @@
-[main d6335b4] Elimina lectura actual de controles temporales
- 1 file changed, 7 deletions(-)
 "use client";
 
 import { useEffect, useState } from "react";
@@ -130,3 +128,16 @@ export function useTemporalWindow<T>(
     visible: items.slice(start, end + 1),
     controls: (
       <TemporalChartControls
+        labels={labels}
+        start={start}
+        end={end}
+        preset={preset}
+        presets={presets}
+        onPreset={choosePreset}
+        onStart={chooseStart}
+        onEnd={chooseEnd}
+        onCustom={() => setPreset("custom")}
+      />
+    ),
+  };
+}
