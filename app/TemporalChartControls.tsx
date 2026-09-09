@@ -1,3 +1,5 @@
+[main d6335b4] Elimina lectura actual de controles temporales
+ 1 file changed, 7 deletions(-)
 "use client";
 
 import { useEffect, useState } from "react";
@@ -36,13 +38,6 @@ export function TemporalChartControls({
   const safeEnd = Math.min(end, Math.max(0, labels.length - 1));
   return (
     <div className="ipp-time-levels chart-time-levels">
-      <div className="ipp-time-reading">
-        <span>Lectura actual</span>
-        <strong>
-          {labels[safeStart] || "Sin datos"} — {labels[safeEnd] || "Sin datos"}
-        </strong>
-        <small>{Math.max(0, safeEnd - safeStart + 1)} períodos visibles</small>
-      </div>
       <div className="ipp-time-quick" aria-label="Rangos históricos rápidos">
         <span>Ampliar período</span>
         <div>
@@ -135,16 +130,3 @@ export function useTemporalWindow<T>(
     visible: items.slice(start, end + 1),
     controls: (
       <TemporalChartControls
-        labels={labels}
-        start={start}
-        end={end}
-        preset={preset}
-        presets={presets}
-        onPreset={choosePreset}
-        onStart={chooseStart}
-        onEnd={chooseEnd}
-        onCustom={() => setPreset("custom")}
-      />
-    ),
-  };
-}
