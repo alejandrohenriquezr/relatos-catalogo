@@ -9,7 +9,8 @@
       "auc"
     ],
     "label": "Estadísticas vitales",
-    "publicationUrl": "https://www.ine.gob.cl/estadisticas-por-tema/demografia-y-poblacion/estimaciones-y-proyecciones-de-poblacion",
+    "publicationTitle": "Estadísticas vitales cifras provisionales 2025",
+    "publicationUrl": "https://www.ine.gob.cl/estadisticas-por-tema/demografia-y-poblacion/estadisticas-vitales",
     "dataUrl": "https://www.ine.gob.cl/docs/default-source/nacimientos-matrimonios-y-defunciones/cuadros-estadisticos/series-hist%C3%B3ricas/series-vitales-1992-2025(p).xlsx",
     "publicationDate": null,
     "sourceHash": null,
