@@ -3,9 +3,11 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 
 interface Env {
-  ASSETS: Fetcher;
-  DB: D1Database;
-  IMAGES: {
+  // Cloudflare supplies these bindings in Sites. Vinext's local Node server
+  // does not inject them, so they are optional for Docker development.
+  ASSETS?: Fetcher;
+  DB?: D1Database;
+  IMAGES?: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
         output(options: { format: string; quality: number }): Promise<{ response(): Response }>;
@@ -18,6 +20,15 @@ interface ExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
   passThroughOnException(): void;
 }
+
+// Vinext's production Node server invokes the Worker handler without a
+// Cloudflare environment or execution context. These fallbacks keep public
+// pages renderable locally while real Sites deployments continue to provide
+// their bindings.
+const localExecutionContext: ExecutionContext = {
+  waitUntil: () => undefined,
+  passThroughOnException: () => undefined,
+};
 
 function withNoIndexHeaders(response: Response): Response {
   // El encabezado protege también recursos no HTML y rutas que no procesan metadatos.
@@ -36,7 +47,11 @@ function withNoIndexHeaders(response: Response): Response {
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
 
 const worker = {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env = {},
+    ctx: ExecutionContext = localExecutionContext,
+  ): Promise<Response> {
     // La vinculación es estable durante la vida del isolate y queda accesible
     // para las rutas sin importar módulos exclusivos de Workers en el build.
     (globalThis as typeof globalThis & { __SITES_DB?: D1Database }).__SITES_DB = env.DB;
@@ -51,11 +66,20 @@ const worker = {
     }
 
     if (url.pathname === "/_vinext/image") {
+      // Image optimization requires Cloudflare-only bindings. Return a clear
+      // local response instead of throwing when Vinext runs in Node.
+      const assets = env.ASSETS;
+      const images = env.IMAGES;
+      if (!assets || !images) {
+        return new Response("Image optimization is unavailable in local Docker runtime.", {
+          status: 503,
+        });
+      }
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
       const response = await handleImageOptimization(request, {
-        fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
+        fetchAsset: (path) => assets.fetch(new Request(new URL(path, request.url))),
         transformImage: async (body, { width, format, quality }) => {
-          const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
+          const result = await images.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
           return result.response();
         },
       }, allowedWidths);
