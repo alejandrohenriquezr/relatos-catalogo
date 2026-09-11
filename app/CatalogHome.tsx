@@ -164,8 +164,12 @@ export default function CatalogHome({ onNavigate }: { onNavigate: (destination: 
             }
           }).catch(() => {});
         };
-        if ("requestIdleCallback" in window) {
-          idleId = window.requestIdleCallback(runRefresh, { timeout: 5000 });
+        const idleWindow = window as Window & {
+          requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+          cancelIdleCallback?: (id: number) => void;
+        };
+        if (idleWindow.requestIdleCallback) {
+          idleId = idleWindow.requestIdleCallback(runRefresh, { timeout: 5000 });
         } else {
           timeoutId = window.setTimeout(runRefresh, 1500);
         }
@@ -173,7 +177,8 @@ export default function CatalogHome({ onNavigate }: { onNavigate: (destination: 
     }
     return () => {
       active = false;
-      if (idleId !== undefined && "cancelIdleCallback" in window) window.cancelIdleCallback(idleId);
+      const idleWindow = window as Window & { cancelIdleCallback?: (id: number) => void };
+      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
   }, []);
