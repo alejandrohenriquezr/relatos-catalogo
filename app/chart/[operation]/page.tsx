@@ -1,7 +1,8 @@
 import ChartPageClient from "./ChartPageClient";
 
-export default function ChartPage({ params }: { params: { operation: string } }) {
-  // Next/Vinext resuelve el segmento dinámico en el servidor, antes de que
-  // el iframe cargue, por lo que nunca cae al Home por un primer render.
-  return <ChartPageClient operation={params.operation} />;
+export default async function ChartPage({ params }: { params: Promise<{ operation: string }> }) {
+  // Next 16 entrega params de forma asíncrona; await también funciona con
+  // adaptadores que aún proporcionan un objeto plano.
+  const { operation } = await params;
+  return <ChartPageClient operation={operation} />;
 }
