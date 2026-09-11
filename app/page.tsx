@@ -11876,12 +11876,23 @@ function AnalysisPage({ initialView }: { initialView: SiteDestination }) {
 }
 
 
+// Resuelve la vista solicitada desde la URL. En los iframes del Home esta
+// decisión debe ocurrir durante el primer render del navegador; de lo
+// contrario puede aparecer temporalmente otro Home dentro del gráfico.
+const chartRouteFromLocation = (): { view: SiteDestination; chart: boolean } => {
+  if (typeof window === "undefined") return { view: "home", chart: false };
+  const operation = new URLSearchParams(window.location.search).get("chart");
+  const allowed = ["ene","informality","ipc","ipp","births","fertility","deaths","mortality","unions","enusc","police","energy","industry","permits","commerce","tourism","supermarkets"];
+  const chart = !!operation && allowed.includes(operation);
+  return { view: chart ? operation as SiteDestination : "home", chart };
+};
+
 export default function Home() {
-  const [route, setRoute] = useState<{ view: SiteDestination; chart: boolean } | null>(null);
+  // La función inicial evita que el iframe renderice el Home completo antes
+  // de aplicar ?chart=operación. El efecto mantiene la URL reactiva si cambia.
+  const [route, setRoute] = useState<{ view: SiteDestination; chart: boolean }>(chartRouteFromLocation);
   useEffect(() => {
-    const operation = new URLSearchParams(window.location.search).get("chart");
-    const allowed = ["ene","informality","ipc","ipp","births","fertility","deaths","mortality","unions","enusc","police","energy","industry","permits","commerce","tourism","supermarkets"];
-    setRoute({ view: operation && allowed.includes(operation) ? operation as SiteDestination : "home", chart: !!operation && allowed.includes(operation) });
+    setRoute(chartRouteFromLocation());
   }, []);
   useEffect(() => {
     if (!route?.chart) return;
