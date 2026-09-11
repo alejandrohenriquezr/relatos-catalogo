@@ -14,7 +14,9 @@ RUN pip install --upgrade pip \
 
 COPY . ./
 
-RUN chmod +x ./entrypoint.sh
+# Normaliza el script de arranque si el clon de Windows lo entregó con CRLF.
+RUN sed -i 's/\r$//' ./entrypoint.sh \
+    && chmod +x ./entrypoint.sh
 
 EXPOSE 8000
 
