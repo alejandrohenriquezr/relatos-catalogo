@@ -103,7 +103,9 @@ function OperationChart({ operation, label }: { operation: SiteDestination; labe
       mutations?.disconnect();
     };
   }, [operation]);
-  const src = operation === "businessDemography" ? "/demografia-empresas/index.html?chart=principal" : `/?chart=${operation}`;
+  // El parámetro embed cambia la URL cuando se publica una nueva versión y
+  // evita que el navegador conserve un iframe del Home anterior en caché.
+  const src = operation === "businessDemography" ? "/demografia-empresas/index.html?chart=principal&embed=1" : `/?chart=${operation}&embed=1`;
   return <iframe ref={frame} className="operation-chart-frame" src={src} title={`Gráfico principal: ${label}`} style={{ height }} />;
 }
 
