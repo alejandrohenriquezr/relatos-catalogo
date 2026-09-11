@@ -1,4 +1,5 @@
 "use client";
+import { usePrincipalChartMode } from "./PrincipalChartMode";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { toggleChartSeries } from "../lib/supermarket-chart-state";
@@ -68,7 +69,7 @@ function Chart({
     series,
     series.map((point) => point.label),
     temporalPresets,
-    13,
+    25,
   );
   const usable = temporal.visible,
     keys = Object.keys(allLabels),
@@ -256,20 +257,13 @@ function IndexSection({
   title: string;
   band?: boolean;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const [territory, setTerritory] = useState("Nacional"),
     series = (data.indexByTerritory[territory] ?? []).map((p: any) => ({
       ...p,
       ...p[mode],
     }));
-  return (
-    <div className={band ? "tourism-band" : ""}>
-      <section className="wrap supermarket-section">
-        <article>
-          <span className="eyebrow">Serie índice · {data.base}</span>
-          <h2>{title}</h2>
-          <Analysis series={series} territory={territory} unit="índice" />
-        </article>
-        <div>
+  const principalChart = (<div>
           <label className="supermarket-select">
             Territorio
             <select
@@ -282,7 +276,17 @@ function IndexSection({
             </select>
           </label>
           <Chart series={series} />
-        </div>
+        </div>);
+  if (principalOnly) return principalChart;
+  return (
+    <div className={band ? "tourism-band" : ""}>
+      <section className="wrap supermarket-section">
+        <article>
+          <span className="eyebrow">Serie índice · {data.base}</span>
+          <h2>{title}</h2>
+          <Analysis series={series} territory={territory} unit="índice" />
+        </article>
+        {principalChart}
       </section>
     </div>
   );
@@ -337,6 +341,7 @@ export default function SupermarketsPage({
 }: {
   onNavigate: (value: string) => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const [data, setData] = useState<any>(() => peekDataset("supermarkets")),
     [error, setError] = useState("");
   useEffect(() => {
@@ -366,6 +371,7 @@ export default function SupermarketsPage({
     () => data?.indexByTerritory?.Nacional?.at(-1),
     [data],
   );
+  if (principalOnly) return data ? <IndexSection data={data} mode="current" title="Análisis del índice a precios corrientes" /> : <p role="status">{error || "Cargando datos oficiales…"}</p>;
   return (
     <main className="economic-page supermarket-page">
       <SectionHeader
