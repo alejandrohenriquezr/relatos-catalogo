@@ -9,7 +9,13 @@ FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# Normaliza scripts Bash que pueden llegar con CRLF desde un clon Windows.
+RUN sed -i 's/\r$//' \
+    scripts/build-verified.sh \
+    scripts/sites-env.sh \
+    scripts/validate-artifact.sh \
+    backend/entrypoint.sh \
+    && npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
