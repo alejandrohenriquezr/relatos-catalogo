@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-relatos}
+      POSTGRES_USER: ${POSTGRES_USER:-relatos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-relatos_dev_change_me}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-relatos} -d ${POSTGRES_DB:-relatos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - relatos_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-relatos}:${POSTGRES_PASSWORD:-relatos_dev_change_me}@db:5432/${POSTGRES_DB:-relatos}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      RUN_SEED: ${RUN_SEED:-true}
+      PORT: 8000
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - relatos_net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}/api/v1
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    networks:
+      - relatos_net
+
+volumes:
+  postgres_data:
+
+networks:
+  relatos_net:
+    driver: bridge
