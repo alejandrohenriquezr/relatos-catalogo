@@ -1,5 +1,7 @@
 import {NextRequest, NextResponse} from "next/server";
 import {parseEneOfficialFiles} from "../../../lib/ene-official-data";
+import eneFallback from "../../../public/ene-data.json";
+import indicatorFallback from "../../../public/indicator-series.json";
 
 const sources={
   indicators:"https://www.ine.gob.cl/docs/default-source/ocupacion-y-desocupacion/cuadros-estadisticos/series-vigentes/indicadores_principales.xlsx",
@@ -15,7 +17,15 @@ async function digest(buffer:ArrayBuffer){const bytes=await crypto.subtle.digest
 
 export async function GET(request:NextRequest){
   const db=(globalThis as typeof globalThis&{__SITES_DB?:D1Database}).__SITES_DB;
-  if(!db)return NextResponse.json({error:"La caché compartida aún no está disponible"},{status:503});
+  if(!db){
+    // En Docker/Vinext no existe el binding D1 de Sites. Devuelve la copia
+    // validada incluida en el despliegue para que la ENE nunca quede bloqueada.
+    return NextResponse.json({
+      ...eneFallback,
+      indicatorSeries: indicatorFallback.series,
+      cache:{status:"stale",checkedAt:new Date().toISOString(),updatedAt:eneFallback.metadata.updated},
+    },{headers:{"Cache-Control":"no-store","X-Data-Warning":"bundled-fallback"}});
+  }
   await db.prepare("CREATE TABLE IF NOT EXISTS economic_source_cache (kind TEXT PRIMARY KEY, source_url TEXT NOT NULL, source_last_modified TEXT, source_etag TEXT, source_size TEXT, payload_json TEXT NOT NULL, checked_at TEXT NOT NULL, updated_at TEXT NOT NULL)").run();
   const cached=await db.prepare("SELECT * FROM economic_source_cache WHERE kind = ?").bind("ene").first<Record<string,string>>();
   const refresh=request.nextUrl.searchParams.get("refresh")==="1";
