@@ -23,3 +23,6 @@ export const statisticalOperationConfig = sqliteTable("statistical_operation_con
   updatedAt: text("updated_at").notNull(),
   updatedBy: text("updated_by").notNull(),
 });
+export const operationCacheUpdates = sqliteTable("operation_cache_updates", {
+  operation: text("operation").primaryKey(), cacheUpdatedAt: text("cache_updated_at"), sourceLastModified: text("source_last_modified"), checkedAt: text("checked_at").notNull(),
+});
