@@ -12,6 +12,8 @@ import rawData from "../public/ene-data.json";
 import indicatorData from "../public/indicator-series.json";
 import ipcRawData from "../public/ipc-data.json";
 import ipcAnalyticsRawData from "../public/ipc-analytics.json";
+import ipcHierarchyRaw from "../public/ipc-hierarchy.json";
+import ipcDetailSeriesRaw from "../public/ipc-detail-series.json";
 import ippRawData from "../public/ipp-data.json";
 import ippmanDivisionsRaw from "../public/ippman-divisions.json";
 import informalityRawData from "../public/informality-data.json";
@@ -28,11 +30,15 @@ import EconomicPage from "./EconomicPage";
 import TourismPage from "./TourismPage";
 import SupermarketsPage from "./SupermarketsPage";
 import BusinessDemographyPage from "./BusinessDemographyPage";
+import CatalogHome from "./CatalogHome";
+import { PrincipalChartMode, usePrincipalChartMode } from "./PrincipalChartMode";
 import SectionHeader, {
   HomeNavLink,
   type SiteDestination,
 } from "./SectionHeader";
 import { primeDataset, type PrefetchKey } from "../lib/client-data-prefetch";
+import { readPublicCache, writePublicCache } from "../lib/client-public-cache";
+import IpcHierarchySelector, { type IpcHierarchyNode } from "./IpcHierarchySelector";
 import {
   useTemporalWindow,
   type TemporalPreset,
@@ -83,7 +89,7 @@ type EneData = {
 type EneRemoteData = {
   series: Record<string, Point[]>;
   indicatorSeries: Record<string, IndicatorPoint[]>;
-  regionalSeries: Record<string, Point[]>;
+  regionalSeries?: Record<string, Point[]>;
   sectorContributions: EneData["sectorContributions"];
   absentEmployment: AbsentEmployment[];
   cache?: {
@@ -130,6 +136,7 @@ type IpcPoint = {
   monthlyIncidence: number | null;
 };
 type IpcData = { base: string; updated: string; series: IpcPoint[] };
+type IpcDetailPoint = Omit<IpcPoint, "division" | "label" | "weight">;
 type IpcAnalyticPoint = {
   year: number;
   month: number;
@@ -322,8 +329,11 @@ function useVitalData() {
     mortality: mortalityRawData as MortalityData,
     unions: unionsRawData as UnionsData,
   };
-  const [data, setData] = useState<VitalDataResponse>(fallback);
-  const [ready, setReady] = useState(false);
+  const [data, setData] = useState<VitalDataResponse>(
+    () => readPublicCache<VitalDataResponse>("vital") ?? fallback,
+  );
+  // La copia pública se muestra desde el primer render; la API solo la reemplaza.
+  const [ready, setReady] = useState(true);
   useEffect(() => {
     let active = true;
     fetch("/api/vital-data", { cache: "no-store" })
@@ -338,13 +348,16 @@ function useVitalData() {
       .then((payload) => {
         if (active && payload.births?.series?.length) {
           setData(payload);
+          writePublicCache("vital", payload);
           setReady(true);
         }
         void fetch("/api/vital-data?refresh=1", { cache: "no-store" })
           .then((response) => (response.ok ? response.json() : null))
           .then((updated) => {
-            if (active && updated?.cache?.status === "updated" && updated.births?.series?.length)
+            if (active && updated?.cache?.status === "updated" && updated.births?.series?.length) {
               setData(updated);
+              writePublicCache("vital", updated);
+            }
           });
       })
       .catch(() => {
@@ -935,13 +948,16 @@ function useChartStandardHeadings() {
             ":scope > .chart-head h2, :scope > .chart-head h3, :scope > .ipp-chart-head h4",
           );
           if (!localTitle) {
+            // En la portada solo se agrega un título cuando el gráfico o su
+            // sección entregan uno específico; se omite el rótulo genérico.
             const inferredTitle =
               text(shell.closest("section")?.querySelector("h2, h3")) ||
-              svg.getAttribute("aria-label") ||
-              "Gráfico estadístico";
-            const title = document.createElement("h2");
-            title.textContent = inferredTitle;
-            standard.append(title);
+              svg.getAttribute("aria-label");
+            if (inferredTitle && inferredTitle !== "Gráfico estadístico") {
+              const title = document.createElement("h2");
+              title.textContent = inferredTitle;
+              standard.append(title);
+            }
           }
 
           const hasGuidance = Boolean(
@@ -1664,29 +1680,43 @@ function IpcChart({
   data,
   selectedYear,
   selectedMonth,
+  bulletinUrl,
 }: {
   data: IpcData;
   selectedYear: number;
   selectedMonth: number;
+  bulletinUrl?: string | null;
 }) {
-  const [division, setDivision] = useState(0);
+  const hierarchy = ipcHierarchyRaw as IpcHierarchyNode[];
+  const detailSeries = ipcDetailSeriesRaw as Record<string, IpcDetailPoint[]>;
+  // El gráfico conserva hasta cinco series; IPC General se reemplaza al agregar la primera específica.
+  const [selectedIds, setSelectedIds] = useState<string[]>(["general"]);
   const [indicator, setIndicator] =
     useState<keyof typeof IPC_INDICATORS>("monthly");
-  const divisions = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          data.series
-            .filter((p) => p.year === 2026 && p.month === 6)
-            .map((p) => [p.division, p.label]),
-        ).entries(),
-      ),
-    [data],
-  );
-  // El período seleccionado fija el extremo derecho de la serie histórica.
-  const availablePoints = data.series.filter(
+  const selectedNodes = selectedIds.map((id) => hierarchy.find((node) => node.id === id) ?? hierarchy[0]);
+  const selectedNode = selectedNodes.at(-1) ?? hierarchy[0];
+  const addSeries = (id: string) => setSelectedIds((current) => {
+    const withoutGeneral = current.filter((item) => item !== "general");
+    if (id === "general") return ["general"];
+    if (withoutGeneral.includes(id) || withoutGeneral.length >= 5) return current;
+    return [...withoutGeneral, id];
+  });
+  const removeSeries = (id: string) => setSelectedIds((current) => {
+    const remaining = current.filter((item) => item !== id);
+    return remaining.length ? remaining : ["general"];
+  });
+  const navigateSeries = (id: string) => setSelectedIds((current) => {
+    const next = current.slice(0, -1);
+    return [...next.filter((item) => item !== id && item !== "general"), id];
+  });
+  const seriesFor = (node: IpcHierarchyNode): Array<IpcPoint | IpcDetailPoint> => {
+    const depth = node.pathIds.length - 1;
+    const division = depth === 0 ? 0 : Number(node.id.slice(0, 2));
+    return depth <= 1 ? data.series.filter((point) => point.division === division) : detailSeries[node.id] ?? [];
+  };
+  // La última serie agregada controla el rango temporal compartido por la comparación.
+  const availablePoints = seriesFor(selectedNode).filter(
       (p) =>
-        p.division === division &&
         (p.year < selectedYear ||
           (p.year === selectedYear && p.month <= selectedMonth)),
     );
@@ -1703,7 +1733,14 @@ function IpcChart({
     25,
   );
   const points = temporal.visible;
-  const values = points.map((p) => p[indicator]);
+  const visiblePeriods = new Set(points.map((point) => `${point.year}-${point.month}`));
+  const palette = ["#123f87", "#d43b45", "#00856a", "#d27a00", "#7446a6"];
+  const chartSeries = selectedNodes.map((node, index) => ({
+    node,
+    color: palette[index],
+    points: seriesFor(node).filter((point) => visiblePeriods.has(`${point.year}-${point.month}`)),
+  }));
+  const values = chartSeries.flatMap((series) => series.points.map((point) => point[indicator]));
   const rawMin = Math.min(...values),
     rawMax = Math.max(...values),
     span = Math.max(rawMax - rawMin, 1);
@@ -1722,19 +1759,17 @@ function IpcChart({
     { length: 5 },
     (_, i) => min + ((max - min) * i) / 4,
   );
-  const line = points
-    .map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p[indicator])}`)
-    .join(" ");
-  const selected = points.at(-1)!;
+  const periodIndex = new Map(points.map((point, index) => [`${point.year}-${point.month}`, index]));
   const download = () => {
-    // Genera un libro Excel con exactamente los 25 meses y la serie visibles.
-    const rows = points.map((p) => ({
+    // Exporta todas las series y períodos que están visibles en la comparación.
+    const rows = chartSeries.flatMap((series) => series.points.map((p) => ({
       Año: p.year,
       Mes: MONTHS[p.month],
-      División: p.label,
-      Serie: IPC_INDICATORS[indicator],
+      Nivel: series.node.nivel,
+      Serie: series.node.glosa,
+      Indicador: IPC_INDICATORS[indicator],
       Valor: p[indicator],
-    }));
+    })));
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(rows);
     worksheet["!cols"] = [
@@ -1742,6 +1777,7 @@ function IpcChart({
       { wch: 14 },
       { wch: 42 },
       { wch: 28 },
+      { wch: 12 },
       { wch: 12 },
     ];
     XLSX.utils.book_append_sheet(workbook, worksheet, "Serie visible");
@@ -1751,48 +1787,44 @@ function IpcChart({
     );
   };
   return (
-    <div className="chart-shell ipc-chart">
+    <div className="ipc-series-explorer">
+      <div className="ipc-series-search-panel">
+        <span className="eyebrow">Buscar y comparar series</span>
+        <IpcHierarchySelector
+          nodes={hierarchy}
+          selectedIds={selectedIds}
+          onAdd={addSeries}
+          onRemove={removeSeries}
+          onNavigate={navigateSeries}
+          publications={[
+            ...(bulletinUrl ? [{ title: `Boletín oficial IPC · ${MONTHS[selectedMonth]} ${selectedYear}`, url: bulletinUrl, tags: ["ipc", "inflación", "precios", "boletín"] }] : []),
+            { title: "Publicaciones, series y documentación oficial del IPC", url: IPC_SOURCE, tags: ["ipc", "inflación", "precios", "metodología", "canasta"] },
+          ]}
+        />
+        <small className="ipc-series-counter">{selectedIds.filter((id) => id !== "general").length || 1} de 5 series en el gráfico</small>
+      </div>
+      <div className="chart-shell ipc-chart">
       <div className="chart-head">
-        <div>
+        <div className="ipc-chart-heading">
           <span className="eyebrow">Serie histórica</span>
-          <h2>{IPC_INDICATORS[indicator]}</h2>
-        </div>
-        <div className="chart-controls ipc-controls">
-          <label>
-            División
-            <select
-              value={division}
-              onChange={(e) => setDivision(+e.target.value)}
-            >
-              {divisions.map(([id, label]) => (
-                <option key={id} value={id}>
-                  {id === 0 ? "IPC General" : `${id}. ${label}`}
-                </option>
-              ))}
-            </select>
-          </label>
           <label>
             Indicador o serie
-            <select
-              value={indicator}
-              onChange={(e) =>
-                setIndicator(e.target.value as keyof typeof IPC_INDICATORS)
-              }
-            >
-              {Object.entries(IPC_INDICATORS).map(([id, label]) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
+            <select value={indicator} onChange={(e) => setIndicator(e.target.value as keyof typeof IPC_INDICATORS)}>
+              {Object.entries(IPC_INDICATORS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
+          <h2>{IPC_INDICATORS[indicator]}</h2>
+          <div className="ipc-chart-context" aria-live="polite">
+            <span>Series seleccionadas</span>
+            {chartSeries.map((series) => <strong key={series.node.id}><i style={{ background: series.color }} />{series.node.glosa}</strong>)}
+          </div>
         </div>
       </div>
       <svg
         className="chart chart-motion"
         viewBox={`0 0 ${w} ${h}`}
         role="img"
-        aria-label={`${IPC_INDICATORS[indicator]} de ${selected.label}`}
+        aria-label={`${IPC_INDICATORS[indicator]} de ${selectedNodes.map((node) => node.glosa).join(", ")}`}
       >
         {ticks.map((v) => (
           <g key={v}>
@@ -1813,21 +1845,13 @@ function IpcChart({
             {String(p.year).slice(-2)}
           </text>
         ))}
-        <path className="line" d={line} style={{ stroke: "#123f87" }} />
-        {points.map((p, i) => (
-          <circle
-            key={`${p.year}-${p.month}`}
-            cx={x(i)}
-            cy={y(p[indicator])}
-            r={i === points.length - 1 ? 5 : 3}
-            fill="#123f87"
-          >
-            <title>
-              {MONTHS[p.month]} {p.year}:{" "}
-              {p[indicator].toFixed(1).replace(".", ",")}%
-            </title>
-          </circle>
-        ))}
+        {chartSeries.map((series) => {
+          const line = series.points.map((p, i) => `${i ? "L" : "M"}${x(periodIndex.get(`${p.year}-${p.month}`) ?? i)},${y(p[indicator])}`).join(" ");
+          return <g key={series.node.id}>
+            <path className="line" d={line} style={{ stroke: series.color }} />
+            {series.points.map((p, i) => <circle key={`${series.node.id}-${p.year}-${p.month}`} cx={x(periodIndex.get(`${p.year}-${p.month}`) ?? i)} cy={y(p[indicator])} r={i === series.points.length - 1 ? 5 : 3} fill={series.color}><title>{series.node.glosa} · {MONTHS[p.month]} {p.year}: {p[indicator].toFixed(1).replace(".", ",")}%</title></circle>)}
+          </g>;
+        })}
       </svg>
       {temporal.controls}
       <div className="chart-foot">
@@ -1835,6 +1859,7 @@ function IpcChart({
           Fuente: INE, Índice de Precios al Consumidor. Base anual {data.base}.
         </span>
         <button onClick={download}>⇩ Descargar serie visible</button>
+      </div>
       </div>
     </div>
   );
@@ -2222,12 +2247,15 @@ function IpcPage({
   onFertility: () => void;
   onDeaths: () => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const fallbackData = ipcRawData as IpcData;
   const fallbackAnalytics = ipcAnalyticsRawData as IpcAnalyticsData;
-  const [data, setData] = useState<IpcData>(fallbackData);
+  const storedIpc = readPublicCache<{ data: IpcData; analytics: IpcAnalyticsData }>("ipc");
+  const [data, setData] = useState<IpcData>(() => storedIpc?.data ?? fallbackData);
   const [analytics, setAnalytics] =
-    useState<IpcAnalyticsData>(fallbackAnalytics);
-  const [cacheReady, setCacheReady] = useState(false);
+    useState<IpcAnalyticsData>(() => storedIpc?.analytics ?? fallbackAnalytics);
+  // El JSON publicado ya es una caché válida y no requiere una espera inicial.
+  const [cacheReady, setCacheReady] = useState(true);
   const periods = useMemo(
     () =>
       Array.from(
@@ -2279,6 +2307,7 @@ function IpcPage({
       if (!active || !payload.data?.series?.length) return;
       setData(payload.data);
       setAnalytics(payload.analytics);
+      writePublicCache("ipc", payload);
       const latestPeriod = payload.data.series
         .filter((point) => point.division === 0)
         .sort((a, b) => b.year - a.year || b.month - a.month)[0];
@@ -2326,6 +2355,13 @@ function IpcPage({
     };
   }, [selectedYear, selectedMonth]);
   if (!cacheReady) return <main className="data-loading" aria-busy="true">Cargando datos oficiales…</main>;
+  const principalChart = (<IpcChart
+          data={data}
+          selectedYear={selectedYear}
+          selectedMonth={selectedMonth}
+          bulletinUrl={bulletin.url}
+        />);
+  if (principalOnly) return principalChart;
   return (
     <main>
       <PriceHeader
@@ -2406,11 +2442,7 @@ function IpcPage({
         </article>
       </section>
       <section className="wrap dashboard ipc-dashboard">
-        <IpcChart
-          data={data}
-          selectedYear={selectedYear}
-          selectedMonth={selectedMonth}
-        />
+        {principalChart}
         <aside>
           <span className="eyebrow">En contexto · {periodLabel}</span>
           <h2>Qué muestran los datos</h2>
@@ -2770,6 +2802,13 @@ function IppSeriesChart({
         ))}
       </svg>
       <div className="ipp-time-levels">
+          <div className="ipp-time-reading">
+            <span>Lectura actual</span>
+            <strong>
+              {periodName(points[0])} — {periodName(points.at(-1))}
+            </strong>
+            <small>{points.length} períodos visibles</small>
+          </div>
           <div className="ipp-time-quick" aria-label="Rangos históricos rápidos">
             <span>Ampliar período</span>
             <div>
@@ -3223,12 +3262,15 @@ function IppPage({
   onFertility: () => void;
   onDeaths: () => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const fallbackData = ippRawData as IppData;
   const fallbackDivisions = ippmanDivisionsRaw as IppDivisionPoint[];
-  const [data, setData] = useState<IppData>(fallbackData);
+  const storedIpp = readPublicCache<{ data: IppData; divisions: IppDivisionPoint[] }>("ipp");
+  const [data, setData] = useState<IppData>(() => storedIpp?.data ?? fallbackData);
   const [manufacturingDivisions, setManufacturingDivisions] =
-    useState<IppDivisionPoint[]>(fallbackDivisions);
-  const [cacheReady, setCacheReady] = useState(false);
+    useState<IppDivisionPoint[]>(() => storedIpp?.divisions ?? fallbackDivisions);
+  // El JSON publicado ya es una caché válida y no requiere una espera inicial.
+  const [cacheReady, setCacheReady] = useState(true);
   const periods = useMemo(
     () =>
       data.industries
@@ -3257,6 +3299,7 @@ function IppPage({
     }) => {
       if (!active || !payload.data?.industries?.length) return;
       setData(payload.data);
+      writePublicCache("ipp", payload);
       if (payload.divisions?.length)
         setManufacturingDivisions(payload.divisions);
       const latest = payload.data.industries.at(-1);
@@ -3314,6 +3357,13 @@ function IppPage({
   const strongest = [...sectors].sort(
     (a, b) => Math.abs(b.point.monthly) - Math.abs(a.point.monthly),
   )[0];
+  const principalChart = (<IppSeriesChart
+            title="Evolución IPP Industrias"
+            series={data.industries}
+            year={year}
+            month={month}
+          />);
+  if (principalOnly) return principalChart;
   return (
     <main>
       <PriceHeader
@@ -3421,12 +3471,7 @@ function IppPage({
           ))}
         </div>
         <div className="ipp-chart-pair ipp-main-charts">
-          <IppSeriesChart
-            title="Evolución IPP Industrias"
-            series={data.industries}
-            year={year}
-            month={month}
-          />
+          {principalChart}
           <IppSeriesChart
             title="Evolución IPP Industrias sin cobre"
             series={data.noCopper}
@@ -3677,14 +3722,9 @@ function InformalityLineChart({
       ),
     );
   const selectCategories = (event: ChangeEvent<HTMLSelectElement>) => {
-    const next = Array.from(
-      event.target.selectedOptions,
-      (option) => option.value,
-    );
-    if (next.length <= 5) {
-      setSelectedCategories(next);
-      if (next.length) setMode("");
-    }
+    const category = event.target.value;
+    setSelectedCategories(category ? [category] : []);
+    setMode(category ? "" : "rate");
   };
   return (
     <div className="chart-shell informal-chart">
@@ -3723,23 +3763,16 @@ function InformalityLineChart({
             </select>
           </label>
           <label>
-            Categoría en la ocupación{" "}
-            <small>{selectedCategories.length}/5 seleccionadas</small>
+            Categoría en la ocupación
             <select
-              className="category-multiselect"
-              multiple
-              size={Math.min(6, categoryOptions.length)}
-              value={selectedCategories}
+              value={selectedCategories[0] ?? ""}
               onChange={selectCategories}
             >
+              <option value="">Selecciona una categoría</option>
               {categoryOptions.map((option) => (
                 <option
                   key={option.id}
                   value={option.id}
-                  disabled={
-                    selectedCategories.length >= 5 &&
-                    !selectedCategories.includes(option.id)
-                  }
                 >
                   {option.label}
                   {option.references.length
@@ -3749,9 +3782,6 @@ function InformalityLineChart({
               ))}
             </select>
           </label>
-          <p className="multi-help">
-            Use Ctrl o Cmd para seleccionar varias categorías. Máximo cinco.
-          </p>
         </div>
       </div>
       <svg
@@ -4262,11 +4292,16 @@ function InformalityPage({
   onFertility: () => void;
   onDeaths: () => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const fallback = informalityRawData as InformalityData;
-  const [data, setData] = useState<InformalityData>(fallback);
-  const [cacheReady, setCacheReady] = useState(false);
+  const initialInformality =
+    readPublicCache<InformalityData>("informality") ?? fallback;
+  const [data, setData] = useState<InformalityData>(initialInformality);
+  // El JSON publicado ya es una caché válida y no requiere una espera inicial.
+  const [cacheReady, setCacheReady] = useState(true);
   const [period, setPeriod] = useState(
-    `${fallback.rates.at(-1)!.year}|${fallback.rates.at(-1)!.quarter}`,
+    // El selector debe partir desde la misma copia que alimenta el gráfico.
+    `${initialInformality.rates.at(-1)!.year}|${initialInformality.rates.at(-1)!.quarter}`,
   );
 
   useEffect(() => {
@@ -4294,13 +4329,18 @@ function InformalityPage({
           updated: payload.updated || fallback.updated,
         } as InformalityData;
         setData(next);
+        writePublicCache("informality", next);
         setCacheReady(true);
         const latest = next.rates.at(-1);
         if (latest) setPeriod(`${latest.year}|${latest.quarter}`);
         void fetch("/api/informality-data?refresh=1", { cache: "no-store" })
           .then((response) => (response.ok ? response.json() : null))
           .then((updated) => {
-            if (active && updated?.cache?.status === "updated") setData({ ...fallback, ...updated } as InformalityData);
+            if (active && updated?.cache?.status === "updated") {
+              const next = { ...fallback, ...updated } as InformalityData;
+              setData(next);
+              writePublicCache("informality", next);
+            }
           });
       })
       .catch(() => {
@@ -4390,6 +4430,12 @@ function InformalityPage({
           .map((item) => `${item.label.toLowerCase()} (${fmt(item.annual)})`)
           .join(" y ")
       : "no presenta desgloses con incidencias positivas disponibles";
+  const principalChart = (<InformalityLineChart
+          points={chartPoints}
+          categoryPoints={categoryChartPoints}
+          categoryFootnotes={data.categoryFootnotes}
+        />);
+  if (principalOnly) return principalChart;
   return (
     <main>
       <PriceHeader
@@ -4495,11 +4541,7 @@ function InformalityPage({
         </article>
       </section>
       <section className="wrap informal-chart-section">
-        <InformalityLineChart
-          points={chartPoints}
-          categoryPoints={categoryChartPoints}
-          categoryFootnotes={data.categoryFootnotes}
-        />
+        {principalChart}
       </section>
       <section className="informal-section">
         <div className="wrap">
@@ -4769,10 +4811,12 @@ function BirthLineChart({ data }: { data: BirthPoint[] }) {
         ))}
         {points.map((point, index) => (
           <text
+            className="x-label"
             key={point.year}
-            x={x(index)}
-            y={h - pB + 25}
-            textAnchor="middle"
+            x={points.length > 13 ? 0 : x(index)}
+            y={points.length > 13 ? 0 : h - pB + 25}
+            textAnchor={points.length > 13 ? "end" : "middle"}
+            transform={points.length > 13 ? `translate(${x(index)} ${h - pB + 25}) rotate(-90)` : undefined}
           >
             {point.year}
             {point.provisional ? "(p)" : ""}
@@ -5465,6 +5509,7 @@ function FertilityPage({
   onBirths: () => void;
   onDeaths: () => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const vital = useVitalData();
   if (!vital.ready) return <main className="data-loading" aria-busy="true">Cargando datos oficiales…</main>;
   const data = vital.data.fertility.series,
@@ -5476,6 +5521,8 @@ function FertilityPage({
     Math.abs((current / base - 1) * 100)
       .toFixed(1)
       .replace(".", ",");
+  const principalChart = (<FertilityTrendChart data={data} />);
+  if (principalOnly) return principalChart;
   return (
     <main>
       <PriceHeader
@@ -5561,7 +5608,7 @@ function FertilityPage({
             calendario reproductivo más tardío.
           </p>
         </div>
-        <FertilityTrendChart data={data} />
+        {principalChart}
       </section>
       <section className="births-analysis">
         <div className="wrap fertility-grid">
@@ -7221,6 +7268,7 @@ function UnionsPage({
   onFertility: () => void;
   onDeaths: () => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const vital = useVitalData();
   if (!vital.ready) return <main className="data-loading" aria-busy="true">Cargando datos oficiales…</main>;
   const raw = vital.data.unions,
@@ -7240,6 +7288,8 @@ function UnionsPage({
     differentSexShare = (latestAuc.differentSex / latestAuc.total) * 100,
     marriageAnnual = (latestMarriage.total / previousMarriage.total - 1) * 100,
     aucAnnual = (latestAuc.total / previousAuc.total - 1) * 100;
+  const principalChart = (<UnionTotalsChart marriages={marriages} auc={auc} />);
+  if (principalOnly) return principalChart;
   return (
     <main>
       <PriceHeader
@@ -7349,7 +7399,7 @@ function UnionsPage({
             distintas.
           </p>
         </div>
-        <UnionTotalsChart marriages={marriages} auc={auc} />
+        {principalChart}
       </section>
       <section className="births-analysis">
         <div className="wrap fertility-grid">
@@ -7487,6 +7537,7 @@ function MortalityPage({
   onFertility: () => void;
   onDeaths: () => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const vital = useVitalData();
   if (!vital.ready) return <main className="data-loading" aria-busy="true">Cargando datos oficiales…</main>;
   const data = vital.data.mortality.series,
@@ -7498,6 +7549,8 @@ function MortalityPage({
     lifeGain = latest.lifeBoth - first.lifeBoth,
     gapFirst = first.lifeWomen - first.lifeMen,
     gapLatest = latest.lifeWomen - latest.lifeMen;
+  const principalChart = (<MortalityRatesChart data={data} />);
+  if (principalOnly) return principalChart;
   return (
     <main>
       <PriceHeader
@@ -7601,7 +7654,7 @@ function MortalityPage({
             específicos por edad disminuyan.
           </p>
         </div>
-        <MortalityRatesChart data={data} />
+        {principalChart}
       </section>
       <section className="births-analysis">
         <div className="wrap fertility-grid">
@@ -7720,6 +7773,7 @@ function DeathsPage({
   onFertility: () => void;
   onMortality: () => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const vital = useVitalData();
   if (!vital.ready) return <main className="data-loading" aria-busy="true">Cargando datos oficiales…</main>;
   const data = vital.data.deaths.series,
@@ -7739,6 +7793,8 @@ function DeathsPage({
     correlation = pearson(corrPoints);
   const annual = (latest.total / previous.total - 1) * 100,
     change = (latest.total / first.total - 1) * 100;
+  const principalChart = (<DeathTrendChart data={data} />);
+  if (principalOnly) return principalChart;
   return (
     <main>
       <PriceHeader
@@ -7836,7 +7892,7 @@ function DeathsPage({
             cada 100 mujeres.
           </p>
         </div>
-        <DeathTrendChart data={data} />
+        {principalChart}
       </section>
       <section className="births-analysis">
         <div className="wrap fertility-grid">
@@ -7947,6 +8003,7 @@ function BirthsPage({
   onFertility: () => void;
   onDeaths: () => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const vital = useVitalData();
   if (!vital.ready) return <main className="data-loading" aria-busy="true">Cargando datos oficiales…</main>;
   const data = vital.data.births.series,
@@ -7954,6 +8011,8 @@ function BirthsPage({
     previous = data.at(-2)!,
     annual = (latest.observed / previous.observed - 1) * 100,
     from1992 = (latest.observed / data[0].observed - 1) * 100;
+  const principalChart = (<BirthLineChart data={data} />);
+  if (principalOnly) return principalChart;
   return (
     <main>
       <PriceHeader
@@ -8058,7 +8117,7 @@ function BirthsPage({
             .
           </p>
         </div>
-        <BirthLineChart data={data} />
+        {principalChart}
       </section>
       <section className="births-analysis">
         <div className="wrap">
@@ -8515,8 +8574,12 @@ export function PolicePage({
   onBirths: () => void;
   onEnusc: () => void;
 }) {
-  const [data, setData] = useState<PoliceData>(policeRawData as PoliceData);
-  const [cacheReady, setCacheReady] = useState(false);
+  const principalOnly = usePrincipalChartMode();
+  const [data, setData] = useState<PoliceData>(
+    () => readPublicCache<PoliceData>("police") ?? (policeRawData as PoliceData),
+  );
+  // El JSON publicado ya es una caché válida y no requiere una espera inicial.
+  const [cacheReady, setCacheReady] = useState(true);
   useEffect(() => {
     let active = true;
     fetch("/api/police-data", { cache: "no-store" })
@@ -8532,12 +8595,16 @@ export function PolicePage({
         )
           {
             setData(payload);
+            writePublicCache("police", payload);
             setCacheReady(true);
           }
         void fetch("/api/police-data?refresh=1", { cache: "no-store" })
           .then((response) => (response.ok ? response.json() : null))
           .then((updated) => {
-            if (active && updated?.cache?.status === "updated") setData(updated as PoliceData);
+            if (active && updated?.cache?.status === "updated") {
+              setData(updated as PoliceData);
+              writePublicCache("police", updated);
+            }
           });
       })
       .catch(() => {
@@ -8549,6 +8616,7 @@ export function PolicePage({
     };
   }, []);
   if (!cacheReady) return <main className="data-loading" aria-busy="true">Cargando datos oficiales…</main>;
+  if (principalOnly) return <PoliceSeriesChart institution={data.institutions.carabineros} />;
   return (
     <main className="police-page">
       <PriceHeader
@@ -9068,8 +9136,12 @@ function EnuscPage({
   onBirths: () => void;
   onPolice: () => void;
 }) {
-  const [data, setData] = useState<EnuscData>(enuscInitialRaw as EnuscData),
-    [fullDataReady, setFullDataReady] = useState(false),
+  const principalOnly = usePrincipalChartMode();
+  const [data, setData] = useState<EnuscData>(
+      () => readPublicCache<EnuscData>("enusc") ?? (enuscInitialRaw as EnuscData),
+    ),
+    // La copia pública completa permite renderizar antes de consultar D1.
+    [fullDataReady, setFullDataReady] = useState(true),
     [error, setError] = useState(false),
     [regionalVariable, setRegionalVariable] = useState("PAD_SEX"),
     [gapVariable, setGapVariable] = useState("PCOS_SEX"),
@@ -9085,11 +9157,15 @@ function EnuscPage({
       .then((payload) => {
         if (active) {
           setData(payload);
+          writePublicCache("enusc", payload);
           setFullDataReady(true);
           void fetch("/api/enusc-data?refresh=1", { cache: "no-store" })
             .then((response) => (response.ok ? response.json() : null))
             .then((updated) => {
-              if (active && updated?.cache?.status === "updated") setData(updated as EnuscData);
+              if (active && updated?.cache?.status === "updated") {
+                setData(updated as EnuscData);
+                writePublicCache("enusc", updated);
+              }
             });
         }
       })
@@ -9192,6 +9268,15 @@ function EnuscPage({
           record.estimates[0]),
         label: record.category || "Total",
       }));
+  const principalChart = (<EnuscIntervalChart
+          eyebrow="Experiencia, percepción y expectativa"
+          title="Cinco dimensiones de la seguridad ciudadana"
+          items={storyItems}
+          definitions={data.qualityNotes}
+          compact
+          featured
+        />);
+  if (principalOnly) return principalChart;
   return (
     <main className="enusc-page">
       <PriceHeader
@@ -9255,14 +9340,7 @@ function EnuscPage({
             mide un fenómeno, universo y referencia territorial diferente.
           </p>
         </div>
-        <EnuscIntervalChart
-          eyebrow="Experiencia, percepción y expectativa"
-          title="Cinco dimensiones de la seguridad ciudadana"
-          items={storyItems}
-          definitions={data.qualityNotes}
-          compact
-          featured
-        />
+        {principalChart}
       </section>
       <section className="enusc-topic enusc-topic-gray">
         <div className="wrap enusc-topic-grid">
@@ -10056,89 +10134,16 @@ function LaborPopulationDendrogram({
   );
 }
 
-function CatalogExploreSidebar() {
-  const groups = [
-    {
-      label: "Mercado laboral",
-      items: [["ene", "Encuesta Nacional de Empleo"], ["informality", "Informalidad laboral"]],
-    },
-    {
-      label: "Precios",
-      items: [["ipc", "Índice de Precios al Consumidor"], ["ipp", "Índice de Precios al Productor"]],
-    },
-    {
-      label: "Demografía y población",
-      items: [["births", "Nacimientos"], ["fertility", "Fecundidad"], ["deaths", "Defunciones"], ["mortality", "Mortalidad"], ["unions", "Matrimonios y AUC"], ["auc", "Acuerdos de unión civil"]],
-    },
-    {
-      label: "Sociedad y condiciones de vida",
-      items: [["enusc", "ENUSC"], ["police", "Estadísticas policiales"]],
-    },
-    {
-      label: "Economía y servicios",
-      items: [["permits", "Permisos de edificación"], ["energy", "Producción de electricidad, gas y agua"], ["industry", "Índice de Producción Industrial"], ["commerce", "Comercio"], ["tourism", "Turismo"], ["supermarkets", "Supermercados"], ["businessDemography", "Demografía de empresas"]],
-    },
-  ] as const;
-
-  return (
-    <aside className="catalog-explore-sidebar">
-      <details>
-        <summary>Explorar por tema</summary>
-        <nav aria-label="Operaciones estadísticas">
-          {groups.map((group) => (
-            <section key={group.label}>
-              <h2>{group.label}</h2>
-              {group.items.map(([operation, label]) => (
-                <a key={operation} href={`/analisis/${operation}`}>
-                  {label}
-                </a>
-              ))}
-            </section>
-          ))}
-        </nav>
-      </details>
-    </aside>
+function AnalysisPage({ initialView }: { initialView: SiteDestination }) {
+  const principalOnly = usePrincipalChartMode();
+  // La serie y el período visible deben nacer de la misma copia persistida.
+  // Así la ENE no pinta primero el período fijo de respaldo al recargar.
+  const initialRemoteEne = readPublicCache<EneRemoteData>("ene");
+  const initialEnePeriod = initialRemoteEne?.series.Total?.at(-1);
+  const [remoteEne, setRemoteEne] = useState<EneRemoteData | null>(
+    initialRemoteEne,
   );
-}
-
-function CatalogPublicationHighlight() {
-  const [publication, setPublication] = useState<{
-    label: string;
-    publicationTitle: string;
-    publicationDate: string | null;
-    publicationUrl: string;
-  } | null>(null);
-
-  useEffect(() => {
-    fetch("/api/catalog/publications", { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        const first = payload?.publications?.[0];
-        if (first) setPublication(first);
-      })
-      .catch(() => undefined);
-  }, []);
-
-  if (!publication) return null;
-  return (
-    <section className="catalog-publication-highlight" aria-label="Publicación más reciente">
-      <div>
-        <span className="eyebrow">Publicación más reciente</span>
-        <h2>{publication.publicationTitle}</h2>
-        <p>
-          Esta publicación reúne los resultados más recientes de {publication.label.toLowerCase()}.
-          Permite revisar su evolución y distribución en Chile a partir de la información oficial disponible.
-        </p>
-        <a href={publication.publicationUrl} target="_blank" rel="noreferrer">
-          Ver publicación oficial
-        </a>
-      </div>
-    </section>
-  );
-}
-
-export default function Home() {
-  const [remoteEne, setRemoteEne] = useState<EneRemoteData | null>(null);
+  const eneLatestRef = useRef(initialEnePeriod ?? null);
   const data = useMemo(() => {
     const d = structuredClone(rawData) as EneData;
     if (remoteEne) {
@@ -10161,8 +10166,8 @@ export default function Home() {
     if (remoteEne?.indicatorSeries) base.series = remoteEne.indicatorSeries;
     return base;
   }, [remoteEne]);
-  const [year, setYear] = useState(2026);
-  const [quarter, setQuarter] = useState("Mar - May");
+  const [year, setYear] = useState(initialEnePeriod?.year ?? 2026);
+  const [quarter, setQuarter] = useState(initialEnePeriod?.quarter ?? "Mar - May");
   const [indicator, setIndicator] = useState("unemploymentRate");
   const [active, setActive] = useState(["Total", "Mujeres", "Hombres"]);
   const [menu, setMenu] = useState(false);
@@ -10186,7 +10191,7 @@ export default function Home() {
     | "tourism"
     | "supermarkets"
     | "businessDemography"
-  >("home");
+  >(initialView);
   const [pricesOpen, setPricesOpen] = useState(false);
   const [laborOpen, setLaborOpen] = useState(false);
   const [demographyOpen, setDemographyOpen] = useState(false);
@@ -10206,6 +10211,7 @@ export default function Home() {
     window.scrollTo(0, 0);
   };
   useEffect(() => {
+    if (principalOnly) return;
     void Promise.allSettled([
       primeDataset("commerce"),
       primeDataset("tourism"),
@@ -10215,6 +10221,26 @@ export default function Home() {
   useEffect(() => {
     if (view !== "ene") return;
     let activeRequest = true;
+    const applyEnePayload = (payload: EneRemoteData) => {
+      if (!activeRequest) return;
+      const incoming = payload.series.Total?.at(-1);
+      const current = eneLatestRef.current;
+      const order = (point: { year: number; quarter: string }) => {
+        const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        const lastMonth = point.quarter.split("-").at(-1)?.trim().slice(0, 3) ?? "";
+        return point.year * 12 + Math.max(0, months.indexOf(lastMonth));
+      };
+      // Una respuesta atrasada nunca debe reemplazar un período más nuevo que
+      // ya estaba visible o persistido por este navegador.
+      if (incoming && current && order(incoming) < order(current)) return;
+      setRemoteEne(payload);
+      writePublicCache("ene", payload);
+      if (incoming) {
+        eneLatestRef.current = incoming;
+        setYear(incoming.year);
+        setQuarter(incoming.quarter);
+      }
+    };
     fetch("/api/ene-data", { cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json();
@@ -10223,13 +10249,7 @@ export default function Home() {
         return payload as EneRemoteData;
       })
       .then((payload) => {
-        if (!activeRequest) return;
-        setRemoteEne(payload);
-        const latestPeriod = payload.series.Total?.at(-1);
-        if (latestPeriod) {
-          setYear(latestPeriod.year);
-          setQuarter(latestPeriod.quarter);
-        }
+        applyEnePayload(payload);
         return fetch("/api/ene-data?refresh=1", { cache: "no-store" });
       })
       .then(async (response) => {
@@ -10237,7 +10257,9 @@ export default function Home() {
         const payload = await response.json();
         return payload.cache?.status === "updated" ? payload as EneRemoteData : null;
       })
-      .then((payload) => { if (activeRequest && payload) setRemoteEne(payload); })
+      .then((payload) => {
+        if (payload) applyEnePayload(payload);
+      })
       .catch(() => {
         /* La copia incluida mantiene la página operativa si aún no existe caché. */
       });
@@ -10419,14 +10441,13 @@ export default function Home() {
           : a.filter((x) => x !== k)
         : [...a, k],
     );
+  if (principalOnly && view === "ene") return <Chart data={liveIndicatorData} indicatorId={indicator} onIndicator={setIndicator} active={active} onToggle={toggle} year={year} quarter={quarter} />;
   if (view === "home")
     return (
-      <LandingPage
+      <CatalogHome
         onNavigate={(destination) => void openDestination(destination)}
       />
     );
-  if (view === "ene" && !remoteEne)
-    return <main className="data-loading" aria-busy="true">Cargando datos oficiales…</main>;
   if (view === "informality")
     return (
       <InformalityPage
@@ -10708,8 +10729,6 @@ export default function Home() {
     );
   return (
     <main>
-      <CatalogExploreSidebar />
-      <CatalogPublicationHighlight />
       <header>
         <div className="topbar">
           <div className="brand">
@@ -11854,4 +11873,57 @@ export default function Home() {
       </footer>
     </main>
   );
+}
+
+
+export default function Home() {
+  const [route, setRoute] = useState<{ view: SiteDestination; chart: boolean } | null>(null);
+  useEffect(() => {
+    const operation = new URLSearchParams(window.location.search).get("chart");
+    const allowed = ["ene","informality","ipc","ipp","births","fertility","deaths","mortality","unions","enusc","police","energy","industry","permits","commerce","tourism","supermarkets"];
+    setRoute({ view: operation && allowed.includes(operation) ? operation as SiteDestination : "home", chart: !!operation && allowed.includes(operation) });
+  }, []);
+  useEffect(() => {
+    if (!route?.chart) return;
+    const root = document.querySelector(".principal-chart-document");
+    if (!root) return;
+    const compactXLabels = () => {
+      root.querySelectorAll("svg").forEach((svg) => {
+        const labels = Array.from(svg.querySelectorAll(".x-label, .econ-x-label, .ipc-x-label, .ipp-division-label, text[transform*='rotate(-90)']"));
+        if (labels.length < 13) return;
+        labels.forEach((label, index) => {
+          (label as HTMLElement).style.display = index % 2 === 0 || index === labels.length - 1 ? "" : "none";
+        });
+      });
+    };
+    compactXLabels();
+    const observer = new MutationObserver(compactXLabels);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [route]);
+  if (!route) return <div role="status">Cargando…</div>;
+  return <PrincipalChartMode.Provider value={route.chart}>
+    {route.chart ? <div className="principal-chart-document">
+      <style>{`
+        html,body{margin:0;background:#fff;min-height:0;max-width:100%;overflow-x:hidden!important}
+        .principal-chart-document{padding:8px;width:100%;max-width:100%;overflow-x:hidden;box-sizing:border-box}
+        .principal-chart-document>.chart-shell,.principal-chart-document>.birth-chart{margin:0;width:100%;box-sizing:border-box}
+        .principal-chart-document svg{max-width:100%;width:100%;height:auto;min-width:0!important}
+        .principal-chart-document .birth-chart{overflow-x:hidden!important}
+        .principal-chart-document .birth-window-controls{min-width:0!important}
+        /* El viewBox de los gráficos reduce los píxeles CSS; 14px produce
+           aproximadamente el tamaño visual de 10px en pantalla. */
+        .principal-chart-document svg text{font-size:14px!important}
+        .principal-chart-document .axis-title,
+        .principal-chart-document .x-label,
+        .principal-chart-document .econ-x-label,
+        .principal-chart-document .ipc-x-label,
+        .principal-chart-document .ipp-division-label{font-size:14px!important}
+        .principal-chart-document .chart-head{flex-wrap:wrap;gap:10px}
+        .principal-chart-document .data-loading{min-height:180px}
+        .principal-chart-document .ipp-time-reading{display:none}
+      `}</style>
+      <AnalysisPage initialView={route.view}/>
+    </div> : <AnalysisPage initialView="home"/>}
+  </PrincipalChartMode.Provider>;
 }
