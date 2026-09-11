@@ -1,4 +1,5 @@
 export type PrefetchKey = "commerce" | "tourism" | "supermarkets";
+import { readPublicCache, writePublicCache } from "./client-public-cache";
 const endpoints: Record<PrefetchKey, string> = {
   commerce: "/api/economic-data?kind=commerce",
   tourism: "/api/tourism-data",
@@ -15,7 +16,11 @@ async function request(url: string) {
   return payload;
 }
 export function peekDataset<T = unknown>(key: PrefetchKey): T | undefined {
-  return values.get(key) as T | undefined;
+  const memory = values.get(key);
+  if (memory) return memory as T;
+  const stored = readPublicCache<T>(key);
+  if (stored) values.set(key, stored);
+  return stored ?? undefined;
 }
 export function primeDataset<T = unknown>(key: PrefetchKey): Promise<T> {
   const existing = values.get(key);
@@ -25,6 +30,7 @@ export function primeDataset<T = unknown>(key: PrefetchKey): Promise<T> {
   const promise = request(endpoints[key])
     .then((payload) => {
       values.set(key, payload);
+      writePublicCache(key, payload);
       pending.delete(key);
       return payload;
     })
@@ -42,6 +48,7 @@ export async function refreshDataset<T = unknown>(
     payload = await request(`${endpoints[key]}${separator}refresh=1`);
   if (payload.source?.cache === "updated") {
     values.set(key, payload);
+    writePublicCache(key, payload);
     return payload as T;
   }
   return undefined;
