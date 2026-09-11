@@ -1,0 +1,8 @@
+.git
+.sites-runtime
+.wrangler
+node_modules
+dist
+.next
+*.log
+.env
