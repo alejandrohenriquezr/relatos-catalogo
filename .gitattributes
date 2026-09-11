@@ -1,0 +1,5 @@
+dist/index.html -text
+
+# Los scripts ejecutados dentro de imágenes Linux deben conservar LF aunque
+# el repositorio se clone desde Windows con configuración CRLF.
+*.sh text eol=lf
