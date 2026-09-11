@@ -63,16 +63,41 @@ async function readLatest(): Promise<Latest[]> {
   return response.ok ? response.json() : [];
 }
 
-async function refreshAllCaches() {
-  // Ejecuta lotes pequeños para no concentrar todas las descargas y
-  // transformaciones de libros Excel en un mismo instante.
-  for (let index = 0; index < refreshEndpoints.length; index += 3) {
-    const batch = refreshEndpoints.slice(index, index + 3);
-    await Promise.allSettled(batch.map((endpoint) => fetch(endpoint, { cache: "no-store" })));
+const refreshMarkerKey = "relatos-catalog-refresh-started-v2";
+const refreshWindowMs = 30 * 60 * 1000;
+let refreshPromise: Promise<void> | null = null;
+
+function canStartBackgroundRefresh() {
+  if (typeof window === "undefined") return false;
+  try {
+    const previous = Number(window.sessionStorage.getItem(refreshMarkerKey) ?? 0);
+    const now = Date.now();
+    if (previous && now - previous < refreshWindowMs) return false;
+    window.sessionStorage.setItem(refreshMarkerKey, String(now));
+    return true;
+  } catch {
+    // Algunos navegadores bloquean sessionStorage; el bloqueo en memoria
+    // sigue evitando que dos componentes del mismo documento se dupliquen.
+    return true;
   }
 }
 
-function OperationChart({ operation, label }: { operation: SiteDestination; label: string }) {
+async function refreshAllCaches() {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    // Lotes de dos limitan CPU, memoria y conexiones mientras se transforman
+    // los libros Excel oficiales. La portada ya está visible antes de iniciar.
+    for (let index = 0; index < refreshEndpoints.length; index += 2) {
+      const batch = refreshEndpoints.slice(index, index + 2);
+      await Promise.allSettled(batch.map((endpoint) => fetch(endpoint, { cache: "no-store" })));
+    }
+  })().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
+function OperationChart({ operation, label, loading = "eager" }: { operation: SiteDestination; label: string; loading?: "lazy" | "eager" }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(540);
   useEffect(() => {
@@ -106,7 +131,7 @@ function OperationChart({ operation, label }: { operation: SiteDestination; labe
   // El parámetro embed cambia la URL cuando se publica una nueva versión y
   // evita que el navegador conserve un iframe del Home anterior en caché.
   const src = operation === "businessDemography" ? "/demografia-empresas/index.html?chart=principal&embed=1" : `/?chart=${operation}&embed=1`;
-  return <iframe ref={frame} className="operation-chart-frame" src={src} title={`Gráfico principal: ${label}`} style={{ height }} />;
+  return <iframe ref={frame} className="operation-chart-frame" src={src} title={`Gráfico principal: ${label}`} loading={loading} style={{ height }} />;
 }
 
 const dateText = (date: string | null) => date ? new Date(date).toLocaleDateString("es-CL") : "Actualización pendiente";
@@ -118,6 +143,8 @@ export default function CatalogHome({ onNavigate }: { onNavigate: (destination: 
   const refreshStarted = useRef(false);
   useEffect(() => {
     let active = true;
+    let idleId: number | undefined;
+    let timeoutId: number | undefined;
     if (!refreshStarted.current) {
       refreshStarted.current = true;
       void (async () => {
@@ -125,17 +152,30 @@ export default function CatalogHome({ onNavigate }: { onNavigate: (destination: 
         const cached = await readLatest().catch(() => [] as Latest[]);
         if (active && cached.length) setLatest(cached);
 
-        // 2. Revisa las fuentes oficiales sin bloquear la portada.
-        await refreshAllCaches().catch(() => {});
-
-        // 3. Si una fuente cambió, lee la caché ya guardada y actualiza la web.
-        const refreshed = await readLatest().catch(() => [] as Latest[]);
-        if (active && refreshed.length && JSON.stringify(refreshed) !== JSON.stringify(cached)) {
-          setLatest(refreshed);
+        // 2. Actualiza fuentes oficiales una sola vez por pestaña y en idle.
+        // Así los iframes y la interacción del home no compiten con descargas.
+        const runRefresh = () => {
+          if (!canStartBackgroundRefresh()) return;
+          void refreshAllCaches().then(async () => {
+            // 3. Si una fuente cambió, refleja la nueva caché sin recargar.
+            const refreshed = await readLatest().catch(() => [] as Latest[]);
+            if (active && refreshed.length && JSON.stringify(refreshed) !== JSON.stringify(cached)) {
+              setLatest(refreshed);
+            }
+          }).catch(() => {});
+        };
+        if ("requestIdleCallback" in window) {
+          idleId = window.requestIdleCallback(runRefresh, { timeout: 5000 });
+        } else {
+          timeoutId = window.setTimeout(runRefresh, 1500);
         }
       })();
     }
-    return () => { active = false; };
+    return () => {
+      active = false;
+      if (idleId !== undefined && "cancelIdleCallback" in window) window.cancelIdleCallback(idleId);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
   }, []);
   const all = useMemo(() => catalogGroups.flatMap((group) => group.items.map(([operation, label]) => ({ operation, label, topic: group.title }))), []);
   const featured = latest[0];
@@ -149,7 +189,7 @@ export default function CatalogHome({ onNavigate }: { onNavigate: (destination: 
     <section className="catalog-feature"><div className="catalog-feature-copy"><div className="catalog-eyebrow">Publicación más reciente · {dateText(featured.updatedAt)}</div><h2>{featured.label}</h2><p className="catalog-feature-analysis">{principalAnalysis[featured.operation]}</p><button className="catalog-link" onClick={() => onNavigate(featured.operation)}>Ir a la operación <span>→</span></button></div><div className="catalog-operation-chart"><OperationChart operation={featured.operation} label={featured.label} /></div></section>
     <div className="catalog-content">
       <aside aria-label="Temas estadísticos"><div className="catalog-eyebrow">Explorar por materia</div><div className="catalog-topic-browser"><div className="catalog-topics">{catalogGroups.map((group, index) => <div className="catalog-topic-row" key={group.title}><button onClick={() => setSelectedTopic(selectedTopic === index ? null : index)} aria-expanded={selectedTopic === index}>{group.title}<span>{group.items.length}</span></button>{selectedTopic === index && <section className="catalog-operation-menu" aria-label={`Operaciones de ${group.title}`}>{group.items.map(([operation, label]) => <button className="catalog-entry" key={operation} onClick={() => onNavigate(operation)}>{label}<span>→</span></button>)}</section>}</div>)}</div></div></aside>
-      <section className="catalog-stories"><div className="catalog-result-head"><h2>Historias por tema actualizadas recientemente</h2><span>{stories.length} temas</span></div><div className="catalog-groups">{stories.map(({ group, item }) => <article key={group.title}><div className="catalog-eyebrow">{group.title} · {dateText(latest.find((entry) => entry.topic === group.title)?.updatedAt ?? null)}</div><h3>{item.label}</h3><p>{group.question}</p><div className="catalog-operation-chart"><OperationChart operation={item.operation} label={item.label} /></div><button className="catalog-link" onClick={() => onNavigate(item.operation)}>Explorar relato <span>→</span></button></article>)}</div></section>
+      <section className="catalog-stories"><div className="catalog-result-head"><h2>Historias por tema actualizadas recientemente</h2><span>{stories.length} temas</span></div><div className="catalog-groups">{stories.map(({ group, item }) => <article key={group.title}><div className="catalog-eyebrow">{group.title} · {dateText(latest.find((entry) => entry.topic === group.title)?.updatedAt ?? null)}</div><h3>{item.label}</h3><p>{group.question}</p><div className="catalog-operation-chart"><OperationChart operation={item.operation} label={item.label} loading="lazy" /></div><button className="catalog-link" onClick={() => onNavigate(item.operation)}>Explorar relato <span>→</span></button></article>)}</div></section>
     </div>
     <footer>Las cifras y documentos publicados en <a href="https://www.ine.gob.cl" target="_blank" rel="noreferrer">ine.gob.cl</a> constituyen la fuente oficial. <a href="/admin">Administración</a></footer>
   </main>;
