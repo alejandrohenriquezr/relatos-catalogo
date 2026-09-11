@@ -1,4 +1,5 @@
 "use client";
+import { usePrincipalChartMode } from "./PrincipalChartMode";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import energyFallback from "../public/economic-energy.json";
@@ -9,6 +10,7 @@ import {
   primeDataset,
   refreshDataset,
 } from "../lib/client-data-prefetch";
+import { readPublicCache, writePublicCache } from "../lib/client-public-cache";
 import SectionHeader, {
   IneLogo,
   type SiteDestination,
@@ -390,6 +392,7 @@ function CommercePage({
   data: any;
   onNavigate: (value: string) => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const [division, setDivision] = useState("general"),
     [product, setProduct] = useState("Línea 1.1"),
     [goodsMetric, setGoodsMetric] = useState("annual");
@@ -406,6 +409,28 @@ function CommercePage({
     durableLatest = data.goods.durable.series.at(-1),
     nonDurableLatest = data.goods.nonDurable.series.at(-1);
   const movement = (value: number) => (value >= 0 ? "aumentó" : "disminuyó");
+  const principalChart = (<div>
+          <label className="econ-select">
+            Actividad
+            <select
+              value={division}
+              onChange={(event) => setDivision(event.target.value)}
+            >
+              {Object.entries(data.divisions).map(([id, item]: any) => (
+                <option value={id} key={id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Spark
+            series={selectedDivision.series}
+            fields={["monthly", "annual", "accumulated"]}
+            labels={Object.values(metrics)}
+            unit="%"
+          />
+        </div>);
+  if (principalOnly) return principalChart;
   return (
     <main className="economic-page commerce-page">
       <SectionHeader
@@ -461,27 +486,7 @@ function CommercePage({
             proviene del comercio automotor, mayorista o minorista.
           </p>
         </article>
-        <div>
-          <label className="econ-select">
-            Actividad
-            <select
-              value={division}
-              onChange={(event) => setDivision(event.target.value)}
-            >
-              {Object.entries(data.divisions).map(([id, item]: any) => (
-                <option value={id} key={id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Spark
-            series={selectedDivision.series}
-            fields={["monthly", "annual", "accumulated"]}
-            labels={Object.values(metrics)}
-            unit="%"
-          />
-        </div>
+        {principalChart}
       </section>
       <section className="commerce-band">
         <div className="wrap econ-story reverse">
@@ -648,15 +653,23 @@ export default function EconomicPage({
   kind: Kind;
   onNavigate: (v: string) => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const [data, setData] = useState<any>(() =>
-      kind === "commerce" ? peekDataset("commerce") : fallbackData[kind],
+      kind === "commerce"
+        ? peekDataset("commerce")
+        : readPublicCache(`economic-${kind}`) ?? fallbackData[kind],
     ),
-    [cacheReady, setCacheReady] = useState(false),
+    // Energía, industria y permisos tienen una copia pública incorporada.
+    [cacheReady, setCacheReady] = useState(kind !== "commerce"),
     [error, setError] = useState(""),
     [metric, setMetric] = useState(kind === "permits" ? "value" : "index");
   useEffect(() => {
     let alive = true;
-    setData(kind === "commerce" ? peekDataset("commerce") : fallbackData[kind]);
+    setData(
+      kind === "commerce"
+        ? peekDataset("commerce")
+        : readPublicCache(`economic-${kind}`) ?? fallbackData[kind],
+    );
     setError("");
     setMetric(kind === "permits" ? "value" : "index");
     const initialRequest =
@@ -673,6 +686,7 @@ export default function EconomicPage({
       .then(async (initial) => {
         if (!alive) return;
         setData(initial);
+        if (kind !== "commerce") writePublicCache(`economic-${kind}`, initial);
         setCacheReady(true);
         if (kind === "commerce") {
           const refreshed = await refreshDataset<any>("commerce");
@@ -734,6 +748,30 @@ export default function EconomicPage({
         ? " m²"
         : "";
   const source = data?.source;
+  const principalChart = (<div>
+              <label className="econ-select">
+                Indicador
+                <select
+                  value={metric}
+                  onChange={(e) => setMetric(e.target.value)}
+                >
+                  {metricOptions.map(([v, l]) => (
+                    <option value={v} key={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Spark
+                series={series}
+                fields={[metric]}
+                labels={[
+                  metricOptions.find((x) => x[0] === metric)?.[1] ?? metric,
+                ]}
+                unit={chartUnit}
+              />
+            </div>);
+  if (principalOnly) return principalChart;
   return (
     <main className="economic-page">
       <SectionHeader
@@ -823,29 +861,7 @@ export default function EconomicPage({
                     : "La superficie autorizada debe leerse como una señal anticipada y no como construcción efectivamente ejecutada."}
               </p>
             </article>
-            <div>
-              <label className="econ-select">
-                Indicador
-                <select
-                  value={metric}
-                  onChange={(e) => setMetric(e.target.value)}
-                >
-                  {metricOptions.map(([v, l]) => (
-                    <option value={v} key={v}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Spark
-                series={series}
-                fields={[metric]}
-                labels={[
-                  metricOptions.find((x) => x[0] === metric)?.[1] ?? metric,
-                ]}
-                unit={chartUnit}
-              />
-            </div>
+            {principalChart}
           </section>
           {kind === "energy" && (
             <section className="wrap econ-story reverse">
