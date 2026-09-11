@@ -1,12 +1,15 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { createLocalD1 } from "../lib/local-d1";
 
 interface Env {
   // Cloudflare supplies these bindings in Sites. Vinext's local Node server
   // does not inject them, so they are optional for Docker development.
   ASSETS?: Fetcher;
   DB?: D1Database;
+  // Ruta del archivo SQLite que persiste la caché compartida en Docker.
+  LOCAL_D1_PATH?: string;
   IMAGES?: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -52,9 +55,18 @@ const worker = {
     env: Env = {},
     ctx: ExecutionContext = localExecutionContext,
   ): Promise<Response> {
-    // La vinculación es estable durante la vida del isolate y queda accesible
-    // para las rutas sin importar módulos exclusivos de Workers en el build.
-    (globalThis as typeof globalThis & { __SITES_DB?: D1Database }).__SITES_DB = env.DB;
+    // Sites usa D1; Docker crea un adaptador SQLite persistente con la misma
+    // interfaz para que todas las rutas sigan actualizando la caché local.
+    let database = env.DB;
+    if (!database && env.LOCAL_D1_PATH) {
+      try {
+        database = await createLocalD1(env.LOCAL_D1_PATH);
+      } catch {
+        // Si el runtime no incluye node:sqlite, las rutas usarán su fallback.
+        database = undefined;
+      }
+    }
+    (globalThis as typeof globalThis & { __SITES_DB?: D1Database }).__SITES_DB = database;
     const url = new URL(request.url);
 
     // Normaliza barras duplicadas para que enlaces copiados como "//api/..."
