@@ -28,6 +28,7 @@ import EconomicPage from "./EconomicPage";
 import TourismPage from "./TourismPage";
 import SupermarketsPage from "./SupermarketsPage";
 import BusinessDemographyPage from "./BusinessDemographyPage";
+import CatalogHome from "./CatalogHome";
 import SectionHeader, {
   HomeNavLink,
   type SiteDestination,
@@ -10421,7 +10422,7 @@ export default function Home() {
     );
   if (view === "home")
     return (
-      <LandingPage
+      <CatalogHome
         onNavigate={(destination) => void openDestination(destination)}
       />
     );
