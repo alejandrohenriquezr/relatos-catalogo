@@ -60,11 +60,15 @@ const worker = {
     // Sites usa D1; Docker crea un adaptador SQLite persistente con la misma
     // interfaz para que todas las rutas sigan actualizando la caché local.
     let database = env.DB;
-    if (!database && env.LOCAL_D1_PATH) {
+    // Vinext en Node puede invocar el Worker sin pasar un objeto env; en ese
+    // caso recupera la misma configuración desde las variables del proceso.
+    const localPath = env.LOCAL_D1_PATH ??
+      (typeof process !== "undefined" ? process.env.LOCAL_D1_PATH : undefined);
+    if (!database && localPath) {
       try {
         // Reutiliza una conexión por isolate para evitar bloqueos y fugas de
         // descriptores cuando el Home dispara varias actualizaciones en paralelo.
-        localDatabasePromise ??= createLocalD1(env.LOCAL_D1_PATH);
+        localDatabasePromise ??= createLocalD1(localPath);
         database = await localDatabasePromise;
       } catch {
         // Si el runtime no incluye node:sqlite, las rutas usarán su fallback.
