@@ -174,3 +174,20 @@ describen en `DATA_SOURCES.md`, `DATA_GOVERNANCE.md` y `DEPLOYMENT.md`.
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+## Migración Python + PostgreSQL y Docker
+
+La rama `version_python` agrega una migración paralela del backend a FastAPI,
+SQLAlchemy y PostgreSQL, con migraciones Alembic, seed idempotente y un entorno
+reproducible de tres servicios (`db`, `backend` y `frontend`) mediante
+`docker-compose.yml`. Esta superficie no reemplaza el despliegue actual de
+Sites en `main`.
+
+La guía completa para Windows, variables de entorno, persistencia, endpoints,
+migraciones y operación está en
+[`docs/MIGRACION_PYTHON_DOCKER.md`](docs/MIGRACION_PYTHON_DOCKER.md).
+El inicio mínimo es:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up --build
+```
