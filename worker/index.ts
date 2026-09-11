@@ -28,6 +28,8 @@ interface ExecutionContext {
 // Cloudflare environment or execution context. These fallbacks keep public
 // pages renderable locally while real Sites deployments continue to provide
 // their bindings.
+let localDatabasePromise: Promise<D1Database> | null = null;
+
 const localExecutionContext: ExecutionContext = {
   waitUntil: () => undefined,
   passThroughOnException: () => undefined,
@@ -60,9 +62,13 @@ const worker = {
     let database = env.DB;
     if (!database && env.LOCAL_D1_PATH) {
       try {
-        database = await createLocalD1(env.LOCAL_D1_PATH);
+        // Reutiliza una conexión por isolate para evitar bloqueos y fugas de
+        // descriptores cuando el Home dispara varias actualizaciones en paralelo.
+        localDatabasePromise ??= createLocalD1(env.LOCAL_D1_PATH);
+        database = await localDatabasePromise;
       } catch {
         // Si el runtime no incluye node:sqlite, las rutas usarán su fallback.
+        localDatabasePromise = null;
         database = undefined;
       }
     }
