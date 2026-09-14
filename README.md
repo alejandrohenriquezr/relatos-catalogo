@@ -174,20 +174,12 @@ describen en `DATA_SOURCES.md`, `DATA_GOVERNANCE.md` y `DEPLOYMENT.md`.
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
-## Migración Python + PostgreSQL y Docker
 
-La rama `version_python` agrega una migración paralela del backend a FastAPI,
-SQLAlchemy y PostgreSQL, con migraciones Alembic, seed idempotente y un entorno
-reproducible de tres servicios (`db`, `backend` y `frontend`) mediante
-`docker-compose.yml`. Esta superficie no reemplaza el despliegue actual de
-Sites en `main`.
+## Actualización automática de cachés
 
-La guía completa para Windows, variables de entorno, persistencia, endpoints,
-migraciones y operación está en
-[`docs/MIGRACION_PYTHON_DOCKER.md`](docs/MIGRACION_PYTHON_DOCKER.md).
-El inicio mínimo es:
+El workflow `.github/workflows/cache-refresh.yml` revisa las fuentes oficiales cada cinco minutos, todos los días entre las 08:00 y las 09:10, con la zona horaria IANA `America/Santiago`. La ventana incluye 08:00–08:55 y 09:00, 09:05 y 09:10.
 
-```powershell
-Copy-Item .env.example .env
-docker compose up --build
-```
+El sitio de Sites está publicado con acceso público, por lo que el workflow funciona sin secretos. Si el sitio vuelve a ser privado, puede definirse opcionalmente `SITES_BYPASS_TOKEN` como secreto de Actions; el workflow lo enviará sólo en el encabezado `OAI-Sites-Authorization` y nunca lo registrará. También puede ejecutarse manualmente desde la pestaña **Actions**.
+
+En `version_python`, Docker inicia `scripts/refresh-public-cache.mjs --daemon` dentro del servicio `frontend`. El daemon actualiza la base SQLite local al levantar el contenedor y repite el mismo horario contra `http://127.0.0.1:3000`. La lista cubre ENE, informalidad, IPC, IPP, estadísticas vitales, ENUSC, estadísticas policiales, energía, industria, permisos de edificación, comercio, turismo y supermercados.
+

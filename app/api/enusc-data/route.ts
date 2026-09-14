@@ -4,11 +4,6 @@ import { sha256 } from "../../../lib/source-hash";
 
 const KIND="enusc", CHUNK_SIZE=400_000;
 const headers={"Cache-Control":"no-store"};
-async function inspect(){
-  const response=await fetch(ENUSC_OFFICIAL_SOURCE,{method:"HEAD",redirect:"follow",headers:{"user-agent":"INE-Relatos/1.0"}});
-  if(!response.ok) throw new Error("No fue posible verificar la planilla ENUSC");
-  return {url:ENUSC_OFFICIAL_SOURCE,lastModified:response.headers.get("last-modified"),etag:response.headers.get("etag"),size:response.headers.get("content-length")};
-}
 async function readPayload(db:D1Database,cached:Record<string,string>){
   const pointer=JSON.parse(cached.payload_json) as {revision:string;chunks:number};
   if(!pointer.revision) return cached.payload_json;
@@ -24,8 +19,9 @@ export async function GET(request:NextRequest){
   const cached=await db.prepare("SELECT * FROM economic_source_cache WHERE kind = ?").bind(KIND).first<Record<string,string>>();
   if(cached&&request.nextUrl.searchParams.get("refresh")!=="1")try{return NextResponse.json(JSON.parse(await readPayload(db,cached)),{headers});}catch{}
   try{
-    const source=await inspect(), now=new Date().toISOString();
-    const response=await fetch(source.url,{headers:{"user-agent":"INE-Relatos/1.0"}}); if(!response.ok) throw new Error("No fue posible descargar la planilla ENUSC");
+    const now=new Date().toISOString();
+    const response=await fetch(ENUSC_OFFICIAL_SOURCE,{redirect:"follow",headers:{"user-agent":"INE-Relatos/1.0"}}); if(!response.ok) throw new Error(`No fue posible descargar la planilla ENUSC (HTTP ${response.status})`);
+    const source={url:ENUSC_OFFICIAL_SOURCE,lastModified:response.headers.get("last-modified"),etag:response.headers.get("etag"),size:response.headers.get("content-length")};
     const bytes=await response.arrayBuffer(), hash=await sha256(bytes);
     if(cached?.source_last_modified===hash){const payload=JSON.parse(await readPayload(db,cached));await db.prepare("UPDATE economic_source_cache SET checked_at = ? WHERE kind = ?").bind(now,KIND).run();return NextResponse.json({...payload,cache:{status:"shared",checkedAt:now,updatedAt:cached.updated_at}},{headers});}
     const payload=parseEnuscWorkbook(bytes), serialized=JSON.stringify(payload), revision=crypto.randomUUID(), chunks=[];

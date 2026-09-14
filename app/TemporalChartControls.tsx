@@ -36,6 +36,13 @@ export function TemporalChartControls({
   const safeEnd = Math.min(end, Math.max(0, labels.length - 1));
   return (
     <div className="ipp-time-levels chart-time-levels">
+      <div className="ipp-time-reading">
+        <span>Lectura actual</span>
+        <strong>
+          {labels[safeStart] || "Sin datos"} — {labels[safeEnd] || "Sin datos"}
+        </strong>
+        <small>{Math.max(0, safeEnd - safeStart + 1)} períodos visibles</small>
+      </div>
       <div className="ipp-time-quick" aria-label="Rangos históricos rápidos">
         <span>Ampliar período</span>
         <div>

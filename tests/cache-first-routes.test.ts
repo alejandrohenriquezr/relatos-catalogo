@@ -151,11 +151,11 @@ test("IPP responde desde D1 antes de consultar al INE", async () => {
   assert.equal(externalCalls, 0);
 });
 
-test("IPP comprueba la fuente como máximo una vez por día", async () => {
+test("IPP vuelve a verificar las fuentes en cada actualización programada", async () => {
   let externalCalls = 0;
   globalThis.fetch = async () => {
     externalCalls++;
-    throw new Error("No debe repetir la comprobación diaria");
+    throw new Error("Fuente oficial no disponible");
   };
   const now = new Date().toISOString();
   (globalThis as typeof globalThis & { __SITES_DB?: unknown }).__SITES_DB =
@@ -175,6 +175,6 @@ test("IPP comprueba la fuente como máximo una vez por día", async () => {
     new NextRequest("http://test/api/ipp-data?refresh=1"),
   );
   assert.equal(response.status, 200);
-  assert.equal((await responseJson(response)).cache.status, "shared");
-  assert.equal(externalCalls, 0);
+  assert.equal((await responseJson(response)).cache.status, "stale");
+  assert.equal(externalCalls, 4);
 });

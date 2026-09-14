@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 
-export const ENUSC_OFFICIAL_SOURCE = "https://www.ine.gob.cl/docs/default-source/seguridad-ciudadana/cuadros-estadisticos/2025/tabulados-regionales---enusc-2025.xlsx";
+export const ENUSC_OFFICIAL_SOURCE = "https://www.ine.gob.cl/docs/default-source/seguridad-ciudadana/cuadros-estadisticos/2024/tabulados---enusc-2024.xlsx";
 
 const theme = (variable:string) => {
   if (/^(PAD|P_FUENTE|PCOS|P_INSEG|PED|P_EXPOS)/.test(variable)) return "Percepción y temor";
@@ -42,7 +42,7 @@ export function parseEnuscWorkbook(buffer:ArrayBuffer){
     tabulations[item.variable]=records;
   }
   const themes:Record<string,number>={}; for(const item of metadata) themes[item.theme]=(themes[item.theme]||0)+1;
-  return {year:2025,source:ENUSC_OFFICIAL_SOURCE,metadata,themes,tabulations,qualityNotes:{
+  return {year:2024,source:ENUSC_OFFICIAL_SOURCE,metadata,themes,tabulations,qualityNotes:{
     "1":"Estimación poco fiable (coeficiente de variación mayor a 15% y menor o igual a 30%. En el caso de estimaciones de razón, si no cumple con el umbral de aceptación asociado a su error estándar). Se recomienda utilizar con precaución esta estimación, ya que podría llevar a conclusiones poco acertadas.",
     "2":"Estimación no fiable (número de casos muestrales menor a 60, grados de libertad menores a 9 o coeficiente de variación mayor a 30%). No se recomienda el uso de esta estimación."
   }};
