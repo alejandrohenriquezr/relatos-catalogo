@@ -39,7 +39,7 @@ services:
   frontend:
     # La etiqueta explícita impide que Compose reutilice una imagen anterior
     # creada antes de las correcciones del Home y Demografía de empresas.
-    image: relatos-catalogo-frontend:version-python-20260914-3
+    image: relatos-catalogo-frontend:version-python-20260914-4
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -48,15 +48,22 @@ services:
       PORT: 3000
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}/api/v1
       LOCAL_D1_PATH: /var/lib/relatos-cache/cache.sqlite
+      # El daemon usa la misma lista de operaciones que GitHub Actions.
+      CACHE_REFRESH_BASE_URL: http://127.0.0.1:3000
+      CACHE_REFRESH_TIMEZONE: America/Santiago
+      CACHE_REFRESH_ON_START: "true"
+      CACHE_REFRESH_BATCH_SIZE: "3"
     volumes:
       - frontend_cache:/var/lib/relatos-cache
+    # Vinext es el proceso principal; el verificador queda en segundo plano.
+    command: ["sh", "-c", "node scripts/refresh-public-cache.mjs --daemon & exec npm run start"]
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
     healthcheck:
       # Comprueba que el contenedor activo contiene esta versión del frontend.
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/build-version.json').then(r=>r.json()).then(v=>{if(v.release!=='version-python-20260914-3')process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/build-version.json').then(r=>r.json()).then(v=>{if(v.release!=='version-python-20260914-4')process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12
