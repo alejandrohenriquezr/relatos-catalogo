@@ -1,0 +1,57 @@
+name: Actualizar cachés de operaciones estadísticas
+
+on:
+  # GitHub aplica estas expresiones en la zona horaria indicada, incluido DST.
+  schedule:
+    - cron: "*/5 8 * * *"
+      timezone: "America/Santiago"
+    - cron: "0-10/5 9 * * *"
+      timezone: "America/Santiago"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "URL del sitio cuya caché se actualizará"
+        required: false
+        default: "https://relatos-estadisticos-v2.alhen1970.chatgpt.site"
+
+permissions:
+  contents: read
+
+# Evita solapamientos si una descarga oficial tarda más de cinco minutos.
+concurrency:
+  group: relatos-cache-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Revisar fuentes INE y actualizar D1
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      # El programa compartido también es el que utiliza Docker localmente.
+      - name: Obtener código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.13.0"
+
+      # El sitio conserva su acceso actual; la credencial se guarda sólo como
+      # secreto del repositorio y nunca se escribe en el código ni en los logs.
+      - name: Verificar credencial de Sites
+        env:
+          SITES_BYPASS_TOKEN: ${{ secrets.SITES_BYPASS_TOKEN }}
+        run: |
+          if [[ -z "${SITES_BYPASS_TOKEN}" ]]; then
+            echo "::error::Falta el secreto SITES_BYPASS_TOKEN en el repositorio."
+            exit 1
+          fi
+
+      - name: Actualizar todas las cachés
+        env:
+          CACHE_REFRESH_BASE_URL: ${{ inputs.base_url || 'https://relatos-estadisticos-v2.alhen1970.chatgpt.site' }}
+          CACHE_REFRESH_TIMEZONE: "America/Santiago"
+          SITES_BYPASS_TOKEN: ${{ secrets.SITES_BYPASS_TOKEN }}
+        run: node scripts/refresh-public-cache.mjs
