@@ -2,7 +2,7 @@ name: Calidad del sitio
 
 on:
   push:
-    branches: [main]
+    branches: [main, version_python]
   pull_request:
     branches: [main]
   workflow_dispatch:
