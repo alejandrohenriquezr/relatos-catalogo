@@ -1,49 +1,60 @@
-# Despliegue y recuperación
+# Despliegue, operación y recuperación
 
-## Sitio productivo
+## Separación de entornos
 
-- Proyecto Sites: identificado por `.openai/hosting.json`.
-- Base lógica D1: `DB`.
-- La publicación debe realizarse únicamente desde una versión guardada y
-  validada del proyecto.
+| Entorno | Activación | Efecto |
+| --- | --- | --- |
+| GitHub | Commit o push | Actualiza el código versionado |
+| Docker local | `docker compose up --build` | Actualiza `localhost:3000` y servicios locales |
+| Sites | Guardar y publicar una versión | Actualiza el sitio productivo |
 
-## Validaciones previas
+Un push a `version_python` no despliega automáticamente Sites ni modifica un contenedor local que ya está ejecutándose.
+
+## Operación local
+
+```powershell
+git switch version_python
+git pull --ff-only origin version_python
+Copy-Item .env.example .env
+docker compose up --build
+```
+
+Comprobaciones:
+
+```powershell
+docker compose ps
+Invoke-WebRequest http://localhost:3000
+Invoke-WebRequest http://localhost:8000/health
+```
+
+Para detener sin borrar datos:
+
+```powershell
+docker compose down
+```
+
+## Validaciones del frontend
 
 ```bash
 npm ci
-npm run lint
+npm run build
 npm test
+npm run lint
 ```
 
-El proceso de construcción debe producir:
+La compilación debe generar `dist/server/index.js` y `dist/.openai/hosting.json`. Cuando existan migraciones D1, deben incluirse en `dist/.openai/drizzle/`.
 
-- `dist/server/index.js`;
-- `dist/.openai/hosting.json`;
-- migraciones en `dist/.openai/drizzle/`, cuando correspondan.
+## Publicación en Sites
 
-## Recuperación desde GitHub
+El proyecto se identifica mediante `.openai/hosting.json` y usa la vinculación D1 `DB`. La publicación debe partir de un commit verificado y una versión guardada. La configuración, los datos D1 y el acceso existente deben conservarse salvo instrucción expresa.
 
-1. Clonar el repositorio privado.
-2. Instalar Node.js compatible.
-3. Ejecutar `npm ci`.
-4. Verificar `.openai/hosting.json`.
-5. Configurar el enlace D1 en el ambiente de Sites.
-6. Ejecutar las pruebas.
-7. Publicar mediante el flujo de Sites.
-8. Confirmar las páginas principales y las rutas API.
+## Recuperación
 
-## Datos y caché
+1. Identificar el último commit y despliegue válidos.
+2. Restaurar el código en una rama de recuperación.
+3. Ejecutar compilación y pruebas.
+4. Guardar y publicar una nueva versión.
+5. Comprobar páginas principales y rutas API.
+6. Registrar causa, alcance y corrección.
 
-El repositorio respalda el esquema, las migraciones y los archivos iniciales.
-No contiene una exportación de la base D1 productiva. La caché puede
-reconstruirse desde las fuentes oficiales.
-
-## Reversión
-
-Ante una falla:
-
-1. identificar el último release válido;
-2. restaurar su commit;
-3. ejecutar pruebas;
-4. publicar una nueva versión;
-5. documentar causa, impacto y corrección.
+El repositorio contiene esquemas, migraciones y datos iniciales, pero no una exportación de D1 productiva ni del volumen PostgreSQL local.

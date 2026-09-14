@@ -1,38 +1,50 @@
 # Gobierno de datos
 
-## Roles recomendados
+## Responsabilidades
 
 | Rol | Responsabilidad |
-|---|---|
-| Dueño del producto | Priorizar alcance, experiencia y versiones |
-| Dueño del dato | Aprobar definición, fuente, unidad y calidad |
+| --- | --- |
+| Dueño del producto | Priorizar alcance y aprobar versiones |
+| Dueño del dato | Aprobar fuente, definición, unidad y calidad |
 | Equipo metodológico | Validar cálculos, notas e interpretación |
-| Equipo editorial | Validar relato y lenguaje claro |
-| Equipo técnico | Mantener transformadores, pruebas y despliegue |
-| DMIE | Definir metadatos |
-| TI y seguridad | Homologar plataforma, acceso y continuidad |
+| Equipo editorial | Revisar texto, jerarquía y lenguaje claro |
+| Equipo técnico | Mantener transformadores, pruebas, caché y despliegue |
+| DMIE | Definir y revisar metadatos |
+| TI y seguridad | Homologar infraestructura, acceso y continuidad |
 
-## Controles mínimos por producto
+## Trazabilidad mínima
 
-1. Fuente oficial y responsable identificados.
-2. Diccionario de variables y unidades.
-3. Reglas de transformación revisadas.
-4. Validaciones de rango, completitud y coherencia temporal.
-5. Comparación con la publicación oficial.
-6. Registro del período y revisión publicados.
-7. Prueba de regresión antes de desplegar.
-8. Procedimiento de corrección y reversión.
+Cada serie debe conservar:
+
+- operación y producto estadístico;
+- URL y archivo oficial;
+- hoja, rango o variables utilizadas;
+- unidad de medida y cobertura;
+- fórmula o regla de transformación;
+- fecha y firma de verificación;
+- versión del transformador;
+- período de la revisión publicada.
+
+## Controles por operación
+
+1. Validar estructura, tipos, rangos y completitud.
+2. Comparar el último período con la publicación oficial.
+3. Comprobar coherencia temporal y unidades.
+4. Registrar advertencias sin reemplazar una caché válida.
+5. Mantener pruebas de regresión para transformaciones críticas.
+6. Documentar correcciones y mecanismo de reversión.
+
+## Persistencia
+
+D1 almacena la caché y configuración del sitio Sites. PostgreSQL almacena el catálogo y metadatos del backend local. La caché SQLite del contenedor frontend acelera la carga local. Ninguna de estas bases sustituye a las fuentes estadísticas oficiales.
 
 ## Gestión de cambios
 
-- Todo cambio debe ingresar mediante una rama y revisión.
-- `main` representa la versión aprobada del repositorio.
-- Los cambios de fuentes o fórmulas deben actualizar pruebas y documentación.
-- Las rupturas de esquema deben generar una alerta y bloquear la publicación.
-- Los releases deben asociarse a un commit, una fecha y un responsable.
+- Las modificaciones ingresan mediante ramas y revisión.
+- Los cambios de fuente, fórmula o esquema deben actualizar pruebas y documentación.
+- Una ruptura de estructura debe impedir la sustitución de la última revisión válida.
+- Cada publicación debe quedar asociada a un commit identificable.
 
-## Privacidad
+## Confidencialidad
 
-El alcance vigente utiliza datos agregados de acceso público. La incorporación
-de microdatos o tablas con riesgo de identificación requiere evaluación de
-confidencialidad y control de divulgación estadística antes del desarrollo.
+El alcance actual usa información agregada y pública. Incorporar microdatos o tablas con riesgo de identificación requiere una evaluación previa de confidencialidad y control de divulgación estadística.

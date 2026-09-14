@@ -1,125 +1,93 @@
-# Migración Python + PostgreSQL y Docker
+# Migración a Python, PostgreSQL y Docker
 
-Esta rama (`version_python`) agrega una implementación paralela del backend.
-El despliegue actual de Sites permanece en `main`, con su Worker, D1 y flujo de
-caché sin cambios.
+La rama `version_python` agrega un backend FastAPI y una base PostgreSQL para el desarrollo local. El frontend React/Vinext se conserva. Esta rama no reemplaza ni publica automáticamente el sitio de Sites.
 
-## Arquitectura local
+## Servicios
 
-```text
-navegador :3000 → frontend (Node/Vinext) ─┐
-                                          ├─ relatos_net
-API REST  :8000 ← backend (FastAPI) ──────┘
-                                          │
-                         db (PostgreSQL 16)
-                         volumen postgres_data
-```
+| Servicio | Puerto | Función | Persistencia |
+| --- | --- | --- | --- |
+| `frontend` | 3000 | Interfaz Vinext y rutas actuales | Volumen `frontend_cache` |
+| `backend` | 8000 | API REST FastAPI | PostgreSQL |
+| `db` | 5432 | PostgreSQL 16 | Volumen `postgres_data` |
 
-El frontend conserva el runtime Node porque el proyecto actual utiliza
-renderizado del servidor y rutas propias. El nuevo backend es independiente y
-usa PostgreSQL como persistencia. En el entorno local, el backend se conecta a
-PostgreSQL mediante el nombre de servicio `db`, nunca mediante `localhost`.
+## Inicio en Windows
 
-## Requisitos en Windows
-
-1. Instalar Docker Desktop para Windows con el backend WSL 2 habilitado.
-2. Instalar Git.
-3. Clonar el repositorio y cambiar a `version_python`.
-4. Copiar `.env.example` a `.env` y cambiar `POSTGRES_PASSWORD` por una clave
-   local segura. No subir `.env` al repositorio.
-
-Desde PowerShell, ubicado en la raíz del proyecto:
+Requisitos: Git, Docker Desktop y WSL 2.
 
 ```powershell
+git clone https://github.com/alejandrohenriquezr/relatos-catalogo.git
+Set-Location relatos-catalogo
+git switch version_python
 Copy-Item .env.example .env
 docker compose up --build
 ```
 
-La primera ejecución descarga las imágenes, crea el volumen de PostgreSQL,
-aplica las migraciones de Alembic y ejecuta la carga inicial del catálogo. Las
-siguientes ejecuciones reutilizan el volumen y la carga es idempotente.
+Cambiar `POSTGRES_PASSWORD` en `.env` antes de usar el entorno fuera del desarrollo local. El archivo `.env` no debe subirse.
 
 Abrir:
 
-- Frontend: <http://localhost:3000>
-- Documentación interactiva de FastAPI: <http://localhost:8000/docs>
-- Esquema OpenAPI: <http://localhost:8000/openapi.json>
-- Estado del backend: <http://localhost:8000/health>
+- <http://localhost:3000>
+- <http://localhost:8000/docs>
+- <http://localhost:8000/openapi.json>
+- <http://localhost:8000/health>
 
-Para detener los contenedores sin borrar los datos:
+## Variables
+
+| Variable | Uso | Valor de desarrollo |
+| --- | --- | --- |
+| `POSTGRES_DB` | Nombre de la base | `relatos` |
+| `POSTGRES_USER` | Usuario | `relatos` |
+| `POSTGRES_PASSWORD` | Contraseña | Cambiar localmente |
+| `POSTGRES_PORT` | Puerto publicado de PostgreSQL | `5432` |
+| `BACKEND_PORT` | Puerto publicado de FastAPI | `8000` |
+| `FRONTEND_PORT` | Puerto publicado del frontend | `3000` |
+| `DATABASE_URL` | Conexión SQLAlchemy | Host interno `db` |
+| `CORS_ORIGINS` | Orígenes autorizados | `http://localhost:3000` |
+| `RUN_SEED` | Ejecuta carga inicial idempotente | `true` |
+
+Aunque cambie el puerto publicado, `DATABASE_URL` debe conservar el host `db` y el puerto interno 5432.
+
+## Ciclo de vida
 
 ```powershell
+docker compose up --build
+docker compose ps
+docker compose logs -f backend
 docker compose down
 ```
 
-Para detenerlos y eliminar también la base local, acción destructiva que no es
-necesaria para el uso habitual:
+`docker compose down` conserva los volúmenes. `docker compose down -v` elimina PostgreSQL y la caché local.
 
-```powershell
-docker compose down -v
-```
+## Migraciones
 
-## Variables de entorno
+El arranque del backend ejecuta `alembic upgrade head` y luego la carga inicial cuando `RUN_SEED=true`.
 
-`.env.example` contiene valores de desarrollo y documenta todas las variables:
-
-| Variable | Uso | Valor de ejemplo |
-| --- | --- | --- |
-| `POSTGRES_DB` | Base creada por la imagen PostgreSQL | `relatos` |
-| `POSTGRES_USER` | Usuario de PostgreSQL | `relatos` |
-| `POSTGRES_PASSWORD` | Clave de PostgreSQL | cambiar localmente |
-| `POSTGRES_PORT` | Puerto publicado en Windows | `5432` |
-| `BACKEND_PORT` | Puerto publicado para FastAPI | `8000` |
-| `FRONTEND_PORT` | Puerto publicado para Vinext | `3000` |
-| `DATABASE_URL` | URL SQLAlchemy/psycopg | `...@db:5432/relatos` |
-| `CORS_ORIGINS` | Orígenes permitidos por FastAPI | `http://localhost:3000` |
-| `RUN_SEED` | Activa la carga inicial al arrancar | `true` |
-
-Si los puertos están ocupados, cambiar `POSTGRES_PORT`, `BACKEND_PORT` o
-`FRONTEND_PORT` en `.env`. La URL interna de `DATABASE_URL` debe conservar el
-host `db` aunque el puerto publicado cambie.
-
-## Backend y persistencia
-
-- `backend/app/main.py`: aplicación FastAPI y endpoints REST.
-- `backend/app/models.py`: modelos ORM SQLAlchemy.
-- `backend/app/database.py`: motor y sesiones PostgreSQL.
-- `backend/migrations/versions/0001_initial_schema.py`: migración inicial
-  versionada.
-- `backend/app/seed.py`: carga opcional e idempotente del catálogo.
-- `backend/entrypoint.sh`: ejecuta `alembic upgrade head`, el seed opcional y
-  Uvicorn.
-
-Después de cambiar modelos ORM dentro del contenedor:
+Después de modificar modelos:
 
 ```powershell
 docker compose run --rm backend alembic revision --autogenerate -m "describe el cambio"
 docker compose up --build
 ```
 
-## Endpoints principales
+## Endpoints del backend
 
 | Método | Endpoint | Función |
 | --- | --- | --- |
-| `GET` | `/health` | Comprueba disponibilidad del proceso |
-| `GET` | `/api/v1/catalog` | Catálogo activo con configuración editorial |
-| `GET` | `/api/v1/catalog?topic=Precios` | Filtra operaciones por materia |
-| `GET` | `/api/v1/operations/{operation}` | Consulta una operación por identificador |
-| `GET` | `/api/v1/cache/{operation}` | Consulta metadatos de caché persistidos |
-| `GET` | `/docs` | Swagger UI generado por FastAPI |
+| `GET` | `/health` | Estado del proceso |
+| `GET` | `/api/v1/catalog` | Catálogo activo |
+| `GET` | `/api/v1/catalog?topic=Precios` | Filtro por materia |
+| `GET` | `/api/v1/operations/{operation}` | Operación por identificador |
+| `GET` | `/api/v1/cache/{operation}` | Metadatos de caché |
+| `GET` | `/docs` | Swagger UI |
 
-Los endpoints nuevos no reemplazan todavía las rutas Next/Vinext existentes.
-La integración progresiva del frontend puede usar
-`NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1` sin alterar el sitio
-publicado.
+La integración con FastAPI es progresiva. Las rutas Vinext existentes continúan disponibles mientras no exista equivalencia verificada en el backend.
 
-## Separación respecto de Sites
-
-No se modifica `.openai/hosting.json`, la rama `main`, el Worker ni las
-migraciones D1. Esta rama contiene exclusivamente el backend Python, la
-configuración Docker, la migración PostgreSQL y su documentación. Para volver
-al código publicado en Sites:
+## Sincronización con GitHub
 
 ```powershell
-git switch main
+git switch version_python
+git pull --ff-only origin version_python
+docker compose up --build
 ```
+
+Este flujo actualiza el repositorio y reconstruye los contenedores. No despliega Sites.
