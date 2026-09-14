@@ -131,7 +131,7 @@ function OperationChart({ operation, label, loading = "eager" }: { operation: Si
   // El parámetro embed cambia la URL cuando se publica una nueva versión y
   // evita que el navegador conserve un iframe del Home anterior en caché.
   const src = operation === "businessDemography" ? "/demografia-empresas/index.html?chart=principal&embed=1" : `/chart/${operation}?embed=1`;
-  return <iframe ref={frame} className="operation-chart-frame" src={src} title={`Gráfico principal: ${label}`} loading={loading} style={{ height }} />;
+  return <iframe key={`${operation}-principal-v3`} ref={frame} className="operation-chart-frame" src={src} title={`Gráfico principal: ${label}`} loading={loading} style={{ height }} />;
 }
 
 const dateText = (date: string | null) => date ? new Date(date).toLocaleDateString("es-CL") : "Actualización pendiente";
@@ -184,7 +184,9 @@ export default function CatalogHome({ onNavigate }: { onNavigate: (destination: 
   }, []);
   const all = useMemo(() => catalogGroups.flatMap((group) => group.items.map(([operation, label]) => ({ operation, label, topic: group.title }))), []);
   const featured = latest[0];
-  const stories = catalogGroups.slice(0, 6).map((group) => {
+  // La portada muestra una operación por cada uno de los cuatro primeros
+  // temas. El contador usa stories.length, por lo que queda sincronizado.
+  const stories = catalogGroups.slice(0, 4).map((group) => {
     const item = latest.find((entry) => entry.topic === group.title && entry.operation !== featured.operation) ?? all.find((entry) => entry.topic === group.title && entry.operation !== featured.operation);
     return item ? { group, item } : null;
   }).filter(Boolean) as { group: Group; item: Latest | { operation: SiteDestination; label: string; topic: string } }[];
