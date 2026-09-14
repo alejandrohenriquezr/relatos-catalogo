@@ -130,7 +130,9 @@ function OperationChart({ operation, label, loading = "eager" }: { operation: Si
   }, [operation]);
   // El parámetro embed cambia la URL cuando se publica una nueva versión y
   // evita que el navegador conserve un iframe del Home anterior en caché.
-  const src = operation === "businessDemography" ? "/demografia-empresas/index.html?chart=principal&embed=1" : `/chart/${operation}?embed=1`;
+  // La versión cambia la URL de recursos que el navegador pudo conservar de
+  // una imagen Docker anterior, incluida la copia corrupta de Demografía.
+  const src = operation === "businessDemography" ? "/demografia-empresas/index.html?chart=principal&embed=1&v=20260914-2" : `/chart/${operation}?embed=1&v=20260914-2`;
   return <iframe key={`${operation}-principal-v3`} ref={frame} className="operation-chart-frame" src={src} title={`Gráfico principal: ${label}`} loading={loading} style={{ height }} />;
 }
 
