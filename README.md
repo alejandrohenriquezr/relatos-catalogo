@@ -174,3 +174,12 @@ describen en `DATA_SOURCES.md`, `DATA_GOVERNANCE.md` y `DEPLOYMENT.md`.
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+
+## Actualización automática de cachés
+
+El workflow `.github/workflows/cache-refresh.yml` revisa las fuentes oficiales cada cinco minutos, todos los días entre las 08:00 y las 09:10, con la zona horaria IANA `America/Santiago`. La ventana incluye 08:00–08:55 y 09:00, 09:05 y 09:10.
+
+El sitio de Sites mantiene acceso restringido. El repositorio debe definir el secreto de Actions `SITES_BYPASS_TOKEN`; el workflow lo envía sólo en el encabezado `OAI-Sites-Authorization` y no lo registra. También puede ejecutarse manualmente desde la pestaña **Actions**.
+
+En `version_python`, Docker inicia `scripts/refresh-public-cache.mjs --daemon` dentro del servicio `frontend`. El daemon actualiza la base SQLite local al levantar el contenedor y repite el mismo horario contra `http://127.0.0.1:3000`. La lista cubre ENE, informalidad, IPC, IPP, estadísticas vitales, ENUSC, estadísticas policiales, energía, industria, permisos de edificación, comercio, turismo y supermercados.
+
