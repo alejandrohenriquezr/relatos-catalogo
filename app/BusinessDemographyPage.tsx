@@ -33,7 +33,7 @@ export default function BusinessDemographyPage({
       <section className="business-demography-frame" aria-label="Análisis de resultados">
         <iframe
           ref={frameRef}
-          src="/demografia-empresas/index.html?v=20260914-2"
+          src="/demografia-empresas/index.html?v=20260914-3"
           style={{ height: frameHeight }}
           title="Análisis de resultados: Demografía de empresas"
         />
