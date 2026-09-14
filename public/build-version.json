@@ -1,6 +1,7 @@
 {
   "branch": "version_python",
-  "release": "version-python-20260914-3",
+  "release": "version-python-20260914-4",
   "homeStories": 4,
-  "demographyDocument": "complete-utf8"
+  "demographyDocument": "complete-utf8",
+  "cacheRefresh": "sites-action-and-local-daemon"
 }
