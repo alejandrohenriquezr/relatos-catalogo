@@ -67,7 +67,7 @@ test("catalog home embeds only principal charts and limits stories to four", asy
   // Esta prueba evita que el Home vuelva a usar la página completa dentro de
   // los iframes y mantiene sincronizado el contador mediante stories.length.
   const source = await readFile(new URL("../app/CatalogHome.tsx", import.meta.url), "utf8");
-  assert.match(source, /`\/chart\/\$\{operation\}\?embed=1&v=20260914-2`/);
+  assert.match(source, /`\/chart\/\$\{operation\}\?embed=1&v=20260914-3`/);
   assert.match(source, /catalogGroups\.slice\(0, 4\)/);
   assert.match(source, /\{stories\.length\} temas/);
 });
@@ -82,7 +82,33 @@ test("business demography document is complete UTF-8 HTML", async () => {
   assert.ok(Buffer.byteLength(document, "utf8") > 500_000);
   assert.ok(document.startsWith("<!DOCTYPE html>"));
   assert.match(document, /Número de empresas activas por año/);
+  assert.match(document, /\/worker\/vendor\/xlsx\.full\.min\.js\?v=20260914-3/);
+  assert.match(document, /\/worker\/client\.js\?v=20260914-3/);
   assert.ok(document.trimEnd().endsWith("</html>"));
+});
+
+test("all economic home embeds support principal-chart mode", async () => {
+  for (const relativePath of [
+    "../app/EconomicPage.tsx",
+    "../app/TourismPage.tsx",
+    "../app/SupermarketsPage.tsx",
+  ]) {
+    const source = await readFile(new URL(relativePath, import.meta.url), "utf8");
+    assert.match(source, /usePrincipalChartMode/);
+    assert.match(source, /if \(principalOnly\) return principalChart/);
+  }
+});
+
+test("Docker restores and validates the local Excel reader", async () => {
+  const dockerfile = await readFile(
+    new URL("../frontend/Dockerfile", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    dockerfile,
+    /cp node_modules\/xlsx\/dist\/xlsx\.full\.min\.js public\/worker\/vendor\/xlsx\.full\.min\.js/,
+  );
+  assert.match(dockerfile, /evolucion_empresas_activas\.xlsx/);
 });
 
 test("frontend release marker matches Docker Compose healthcheck", async () => {
