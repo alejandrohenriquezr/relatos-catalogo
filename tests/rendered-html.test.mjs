@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const developmentPreviewMeta =
@@ -60,4 +61,26 @@ test("blocks crawler access through robots.txt", async () => {
 
   assert.equal(response.status, 200);
   assert.match(await response.text(), /User-Agent:\s*\*\s*Disallow:\s*\//i);
+});
+
+test("catalog home embeds only principal charts and limits stories to four", async () => {
+  // Esta prueba evita que el Home vuelva a usar la página completa dentro de
+  // los iframes y mantiene sincronizado el contador mediante stories.length.
+  const source = await readFile(new URL("../app/CatalogHome.tsx", import.meta.url), "utf8");
+  assert.match(source, /`\/chart\/\$\{operation\}\?embed=1`/);
+  assert.match(source, /catalogGroups\.slice\(0, 4\)/);
+  assert.match(source, /\{stories\.length\} temas/);
+});
+
+test("business demography document is complete UTF-8 HTML", async () => {
+  // El tamaño y los marcadores protegen contra la copia truncada/binaria que
+  // anteriormente aparecía como símbolos extraños en el navegador.
+  const document = await readFile(
+    new URL("../public/demografia-empresas/index.html", import.meta.url),
+    "utf8",
+  );
+  assert.ok(Buffer.byteLength(document, "utf8") > 500_000);
+  assert.ok(document.startsWith("<!DOCTYPE html>"));
+  assert.match(document, /Número de empresas activas por año/);
+  assert.ok(document.trimEnd().endsWith("</html>"));
 });
