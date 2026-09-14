@@ -132,7 +132,7 @@ function OperationChart({ operation, label, loading = "eager" }: { operation: Si
   // evita que el navegador conserve un iframe del Home anterior en caché.
   // La versión cambia la URL de recursos que el navegador pudo conservar de
   // una imagen Docker anterior, incluida la copia corrupta de Demografía.
-  const src = operation === "businessDemography" ? "/demografia-empresas/index.html?chart=principal&embed=1&v=20260914-2" : `/chart/${operation}?embed=1&v=20260914-2`;
+  const src = operation === "businessDemography" ? "/demografia-empresas/index.html?chart=principal&embed=1&v=20260914-3" : `/chart/${operation}?embed=1&v=20260914-3`;
   return <iframe key={`${operation}-principal-v3`} ref={frame} className="operation-chart-frame" src={src} title={`Gráfico principal: ${label}`} loading={loading} style={{ height }} />;
 }
 
