@@ -1,4 +1,5 @@
 "use client";
+import { usePrincipalChartMode } from "./PrincipalChartMode";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -267,6 +268,7 @@ function TourismSection({
   table: any;
   lead?: boolean;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const [region, setRegion] = useState("Total nacional"),
     [metric, setMetric] = useState("value");
   const series = table.seriesByRegion[region] ?? [],
@@ -289,6 +291,36 @@ function TourismSection({
         : table.unit === "nights"
           ? `${fmt(latest?.value, 2)} noches`
           : fmt(latest?.value, 0);
+  const principalChart = (<div>
+        <div className="tourism-selectors">
+          <label>
+            Serie
+            <select
+              value={metric}
+              onChange={(event) => setMetric(event.target.value)}
+            >
+              {Object.entries(metricLabels).map(([id, label]) => (
+                <option key={id} value={id}>
+                  {id === "value" ? table.shortTitle : label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Territorio
+            <select
+              value={region}
+              onChange={(event) => setRegion(event.target.value)}
+            >
+              {table.regions.map((item: string) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <TourismChart series={series} metric={metric} unit={unit} />
+      </div>);
+  if (principalOnly) return principalChart;
   return (
     <section className={`wrap tourism-story ${lead ? "is-lead" : ""}`}>
       <article>
@@ -317,35 +349,7 @@ function TourismSection({
           señal reciente de una trayectoria más persistente.
         </p>
       </article>
-      <div>
-        <div className="tourism-selectors">
-          <label>
-            Serie
-            <select
-              value={metric}
-              onChange={(event) => setMetric(event.target.value)}
-            >
-              {Object.entries(metricLabels).map(([id, label]) => (
-                <option key={id} value={id}>
-                  {id === "value" ? table.shortTitle : label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Territorio
-            <select
-              value={region}
-              onChange={(event) => setRegion(event.target.value)}
-            >
-              {table.regions.map((item: string) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <TourismChart series={series} metric={metric} unit={unit} />
-      </div>
+      {principalChart}
     </section>
   );
 }
@@ -382,6 +386,7 @@ export default function TourismPage({
 }: {
   onNavigate: (value: string) => void;
 }) {
+  const principalOnly = usePrincipalChartMode();
   const [data, setData] = useState<any>(() => peekDataset("tourism") ?? null),
     [error, setError] = useState("");
   useEffect(() => {
@@ -422,6 +427,7 @@ export default function TourismPage({
         : [],
     [data, tables],
   );
+  if (principalOnly) return data ? <TourismSection table={tables[String(demandSheets[0] ?? 1)]} lead /> : <p role="status">{error || "Cargando datos oficiales…"}</p>;
   return (
     <main className="economic-page tourism-page">
       <SectionHeader
