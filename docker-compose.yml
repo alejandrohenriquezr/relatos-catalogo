@@ -37,6 +37,9 @@ services:
       - relatos_net
 
   frontend:
+    # La etiqueta explícita impide que Compose reutilice una imagen anterior
+    # creada antes de las correcciones del Home y Demografía de empresas.
+    image: relatos-catalogo-frontend:version-python-20260914-2
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -51,6 +54,12 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
+    healthcheck:
+      # Comprueba que el contenedor activo contiene esta versión del frontend.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/build-version.json').then(r=>r.json()).then(v=>{if(v.release!=='version-python-20260914-2')process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     networks:
       - relatos_net
 
