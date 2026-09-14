@@ -38,17 +38,8 @@ jobs:
         with:
           node-version: "22.13.0"
 
-      # El sitio conserva su acceso actual; la credencial se guarda sólo como
-      # secreto del repositorio y nunca se escribe en el código ni en los logs.
-      - name: Verificar credencial de Sites
-        env:
-          SITES_BYPASS_TOKEN: ${{ secrets.SITES_BYPASS_TOKEN }}
-        run: |
-          if [[ -z "${SITES_BYPASS_TOKEN}" ]]; then
-            echo "::error::Falta el secreto SITES_BYPASS_TOKEN en el repositorio."
-            exit 1
-          fi
-
+      # El sitio es público. El token queda como opción para instalaciones
+      # privadas, pero no es necesario para el despliegue público actual.
       - name: Actualizar todas las cachés
         env:
           CACHE_REFRESH_BASE_URL: ${{ inputs.base_url || 'https://relatos-estadisticos-v2.alhen1970.chatgpt.site' }}
