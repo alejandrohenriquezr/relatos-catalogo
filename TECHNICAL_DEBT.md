@@ -1,26 +1,27 @@
 # Deuda técnica registrada
 
-## Análisis estático
+## Estado conocido
 
-La versión respaldada compila y cuenta con pruebas funcionales, pero ESLint
-detecta observaciones heredadas en componentes de la aplicación:
+La aplicación cuenta con compilación y pruebas funcionales. El análisis estático mantiene observaciones heredadas:
 
-- actualizaciones sincrónicas de estado dentro de algunos efectos;
-- acceso a referencias React durante el renderizado;
-- tipos `any` en la ruta de supermercados;
-- dependencias faltantes y directivas no utilizadas.
+- actualizaciones sincrónicas de estado dentro de algunos efectos React;
+- acceso a referencias durante el renderizado;
+- tipos `any` en rutas y transformadores específicos;
+- dependencias faltantes en hooks y directivas no utilizadas;
+- coexistencia temporal de D1, PostgreSQL y SQLite sin una capa común de repositorios;
+- rutas Vinext y FastAPI que todavía no tienen equivalencia completa.
 
-Por esta razón, el paso de lint en GitHub Actions es inicialmente informativo.
-Las pruebas y la construcción siguen siendo obligatorias.
+Por esta razón, lint puede ser informativo mientras compilación y pruebas siguen siendo obligatorias.
 
-## Plan de regularización
+## Prioridades
 
-1. Corregir primero los tipos explícitos de las rutas API.
-2. Refactorizar los hooks de animación conservando el comportamiento visual.
-3. Sustituir estados derivados por cálculos durante el renderizado cuando
-   corresponda.
-4. Agregar pruebas de regresión para cada refactorización.
-5. Convertir lint nuevamente en control bloqueante.
+1. Corregir tipos explícitos de rutas API y transformadores.
+2. Refactorizar hooks sin cambiar animaciones ni selectores.
+3. Sustituir estados derivados por cálculos declarativos cuando corresponda.
+4. Definir contratos compartidos entre Vinext y FastAPI.
+5. Agregar pruebas de integración para PostgreSQL y migraciones Alembic.
+6. Convertir lint nuevamente en control bloqueante.
 
-Estas correcciones deben realizarse en pull requests separados del respaldo
-inicial para mantener trazabilidad y facilitar la reversión.
+## Regla de trabajo
+
+Cada corrección debe incluir una prueba de regresión y realizarse en un cambio separado de nuevas funcionalidades. La actualización de documentación no debe modificar archivos ejecutables ni disparar por sí sola una publicación en Sites.

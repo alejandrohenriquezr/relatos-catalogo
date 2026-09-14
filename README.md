@@ -1,139 +1,109 @@
-# vinext-starter
+# Relatos Estadísticos
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Sitio del Instituto Nacional de Estadísticas de Chile para consultar resultados estadísticos, navegar por materias y operaciones, revisar análisis, descargar datos y consumir servicios SDMX.
 
-## Prerequisites
+La rama `version_python` conserva el frontend React/Vinext y agrega un entorno local reproducible con FastAPI, PostgreSQL y Docker Compose. El sitio publicado en Sites utiliza Cloudflare Workers y D1; el entorno Docker es independiente y no modifica automáticamente el despliegue productivo.
 
-- Node.js `>=22.13.0`
-- Linux with `flock`, `curl`, and GNU `timeout`
+## Funcionalidades
 
-## Sites Lifecycle
+- Catálogo temático de operaciones estadísticas.
+- Visualizaciones de mercado laboral, precios, demografía, condiciones de vida, actividad económica y servicios.
+- Caché pública con respuesta inmediata y verificación posterior de fuentes oficiales.
+- CMS por operación en `/admin`.
+- API SDMX y endpoint MCP para consulta estructurada.
+- Módulo de Demografía de empresas basado en resultados experimentales del RUE 2025.
+- Entorno local Docker con frontend, API FastAPI y PostgreSQL.
 
-The Sites lifecycle CLI runs the locked dependency install before returning this checkout. Edit the source under `app/`, then checkpoint when a coherent milestone is ready to inspect or share. The remote Sites builder runs `npm run build` against the pushed commit. Do not repeat install or build as a normal pre-checkpoint step.
+## Arquitectura resumida
 
-This starter does not use `wrangler.jsonc`.
+| Superficie | Tecnología | Persistencia |
+| --- | --- | --- |
+| Sitio en Sites | React 19, TypeScript, Vinext, Cloudflare Worker | D1 |
+| Entorno local | Vinext en `:3000`, FastAPI en `:8000` | PostgreSQL 16 |
+| Datos iniciales | JSON, XLSX y activos versionados en `public/` | Repositorio |
+| Actualización | Rutas API y scripts de verificación | Caché vigente |
 
-`install:ci` is intentionally a single, non-retrying `npm ci`. It refuses a concurrent install for the same project, consumes a matching image-seeded npm cache with `--prefer-offline` while retaining registry fallback for a missing cache object, otherwise downloads and verifies the complete vinext tarball recorded in `package-lock.json`, limits npm to one socket, and terminates a stalled install. `build` applies a short timeout and then validates the Sites artifact. These helpers target Linux and use GNU `timeout`; they are not native macOS scripts.
+La descripción detallada está en [ARCHITECTURE.md](ARCHITECTURE.md).
 
-Scripts that need writable project-scoped home, npm, XDG, and temporary paths use `scripts/sites-env.sh`. The `dev` and `start` scripts honor the caller's runtime environment and keep Wrangler logs inside the checkout. The generated `.sites-runtime/` directory is disposable and ignored by Git.
+## Requisitos
 
-## Included Shape
+### Docker, recomendado para `version_python`
 
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+- Git.
+- Docker Desktop con Docker Compose.
+- En Windows, WSL 2 habilitado.
 
-## Workspace Auth Headers
+### Ejecución directa del frontend
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+- Node.js 22.13.0 o posterior.
+- npm compatible con el archivo `package-lock.json`.
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+## Instalación local con Docker
 
-Treat the full name as optional and fall back to email when it is absent:
+Desde PowerShell:
 
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```powershell
+git clone https://github.com/alejandrohenriquezr/relatos-catalogo.git
+Set-Location relatos-catalogo
+git switch version_python
+Copy-Item .env.example .env
+docker compose up --build
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+Servicios disponibles:
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+- Frontend: <http://localhost:3000>
+- API FastAPI: <http://localhost:8000>
+- Swagger UI: <http://localhost:8000/docs>
+- Estado del backend: <http://localhost:8000/health>
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+Para detener sin borrar datos:
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+```powershell
+docker compose down
+```
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+El comando `docker compose down -v` elimina la base PostgreSQL y la caché local; debe usarse solo cuando se quiera reiniciar los datos.
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+## Ejecución directa del frontend
 
-## Diagnostic Commands
+```bash
+npm ci
+npm run dev
+```
 
-- `npm run install:ci`: perform the one bounded lockfile install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build and validate the deployable Sites artifact
-- `npm run start`: start the built Vinext application
-- `npm test`: build, validate, and verify the rendered development-preview metadata
-- `npm run validate:artifact`: recheck an existing artifact's manifest and ESM `default.fetch` export
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+Comandos de control:
 
-Use build and validation commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
+```bash
+npm run build
+npm test
+npm run lint
+npm run validate:artifact
+```
 
-The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
+El análisis estático conserva observaciones heredadas registradas en [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md). La compilación y las pruebas son los controles obligatorios.
 
-## Relatos Estadísticos
+## Organización del repositorio
 
-Este repositorio contiene el sitio de difusión de resultados estadísticos del
-INE de Chile. La interfaz usa React 19, TypeScript y Vinext sobre Cloudflare
-Workers. D1 almacena la caché pública, las firmas de las fuentes y la
-configuración editorial del CMS. Las planillas oficiales se transforman con
-XLSX y los snapshots incluidos en `public/` permiten una respuesta inicial
-estable.
+| Ruta | Contenido |
+| --- | --- |
+| `app/` | Páginas React, componentes y rutas API de Vinext |
+| `lib/` | Transformadores, modelos y lógica de dominio |
+| `public/` | Activos, datos iniciales y archivos descargables |
+| `worker/` | Entrada del Cloudflare Worker |
+| `db/`, `drizzle/` | Esquema y migraciones D1 |
+| `backend/` | API FastAPI, SQLAlchemy, Alembic y carga inicial |
+| `scripts/` | Extracción, actualización de caché y validaciones |
+| `tests/` | Pruebas de caché, SDMX, MCP y HTML |
+| `docs/` | Migración Docker y contratos SDMX |
 
-La aplicación se organiza así: `app/` contiene vistas y rutas API; `lib/`
-contiene transformadores y modelos; `public/` contiene activos, datos iniciales
-y el análisis migrado de Demografía de empresas; `db/` y `drizzle/` contienen
-persistencia y migraciones; `docs/` contiene contratos SDMX; `scripts/` contiene
-extractores y validadores; `worker/` es el punto de entrada del Worker.
+## Caché y actualización de fuentes
 
-### Caché, hash y actualización
+Las rutas consultan primero la última revisión válida. Después verifican la fuente oficial mediante hash y, cuando están disponibles, ETag, `Last-Modified` o tamaño. Una revisión nueva se publica solo después de transformar y validar los datos. Si la fuente no responde o cambia de estructura, se conserva la revisión anterior.
 
-Las rutas de datos responden primero con la revisión válida almacenada en D1.
-Después consultan la firma de la fuente en `ine.gob.cl` mediante hash, ETag,
-`Last-Modified` o tamaño, según la operación. Si la firma cambió, descargan,
-validan y transforman la nueva fuente, guardan el payload y actualizan sus
-metadatos. Si la fuente falla, se conserva la última revisión válida.
+El workflow de GitHub Actions usa el secreto `SITES_BYPASS_TOKEN` para actualizar el sitio restringido. El contenedor frontend ejecuta el mismo proceso contra `http://127.0.0.1:3000` y guarda la caché local en un volumen.
 
-### CMS
-
-`/admin` configura por operación las secciones de análisis de resultados,
-publicaciones, documentación, bases de datos y centro de recursos. La tabla
-`statistical_operation_config` guarda esos estados y
-`GET /api/operation-config` entrega la configuración pública. El análisis de
-resultados queda activo por defecto.
-
-### API SDMX
+## API SDMX
 
 Rutas principales:
 
@@ -144,59 +114,29 @@ GET /api/sdmx/data/DEMOGRAFIA_EMPRESAS/CL....?format=sdmx-json
 GET /api/sdmx/documentation
 ```
 
-Ejemplos:
+Ejemplos locales:
 
 ```bash
-curl https://relatos-estadisticos.alhen1970.chatgpt.site/api/sdmx/catalog
-curl 'https://relatos-estadisticos.alhen1970.chatgpt.site/api/sdmx/metadata?dataset=DEMOGRAFIA_EMPRESAS'
-curl 'https://relatos-estadisticos.alhen1970.chatgpt.site/api/sdmx/data/DEMOGRAFIA_EMPRESAS/CL....?format=sdmx-json' -o datos.json
+curl http://localhost:3000/api/sdmx/catalog
+curl "http://localhost:3000/api/sdmx/metadata?dataset=DEMOGRAFIA_EMPRESAS"
+curl "http://localhost:3000/api/sdmx/data/DEMOGRAFIA_EMPRESAS/CL....?format=sdmx-json"
 ```
 
-El contrato de dimensiones, códigos, observaciones y ejemplos está en
-[`docs/sdmx/README.md`](docs/sdmx/README.md) y
-[`docs/sdmx/DEMOGRAFIA_EMPRESAS.md`](docs/sdmx/DEMOGRAFIA_EMPRESAS.md).
+Los contratos están documentados en [docs/sdmx/README.md](docs/sdmx/README.md) y [docs/sdmx/DEMOGRAFIA_EMPRESAS.md](docs/sdmx/DEMOGRAFIA_EMPRESAS.md).
 
-### Instalación y despliegue
+## Configuración y secretos
 
-```bash
-npm ci
-npm run build
-npm test
-npm run lint
-```
+Copiar `.env.example` como `.env` y cambiar la contraseña de PostgreSQL. No se deben versionar `.env`, tokens, cookies, credenciales ni exportaciones de las bases productivas.
 
-El despliegue requiere el proyecto Sites indicado en `.openai/hosting.json`,
-la vinculación D1 `DB` y el Worker `worker/index.ts`. No se incluyen
-credenciales ni la base D1 productiva. Las fuentes y rutas de reconstrucción se
-describen en `DATA_SOURCES.md`, `DATA_GOVERNANCE.md` y `DEPLOYMENT.md`.
+El archivo `.openai/hosting.json` identifica el proyecto Sites y la vinculación lógica D1 `DB`. Modificar el repositorio no publica el sitio por sí mismo.
 
-## Learn More
+## Documentación
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
-## Migración Python + PostgreSQL y Docker
-
-La rama `version_python` agrega una migración paralela del backend a FastAPI,
-SQLAlchemy y PostgreSQL, con migraciones Alembic, seed idempotente y un entorno
-reproducible de tres servicios (`db`, `backend` y `frontend`) mediante
-`docker-compose.yml`. Esta superficie no reemplaza el despliegue actual de
-Sites en `main`.
-
-La guía completa para Windows, variables de entorno, persistencia, endpoints,
-migraciones y operación está en
-[`docs/MIGRACION_PYTHON_DOCKER.md`](docs/MIGRACION_PYTHON_DOCKER.md).
-El inicio mínimo es:
-
-```powershell
-Copy-Item .env.example .env
-docker compose up --build
-```
-
-## Actualización automática de cachés
-
-El workflow `.github/workflows/cache-refresh.yml` revisa las fuentes oficiales cada cinco minutos, todos los días entre las 08:00 y las 09:10, con la zona horaria IANA `America/Santiago`. La ventana incluye 08:00–08:55 y 09:00, 09:05 y 09:10.
-
-El sitio de Sites mantiene acceso restringido. El repositorio debe definir el secreto de Actions `SITES_BYPASS_TOKEN`; el workflow lo envía sólo en el encabezado `OAI-Sites-Authorization` y no lo registra. También puede ejecutarse manualmente desde la pestaña **Actions**.
-
-En `version_python`, Docker inicia `scripts/refresh-public-cache.mjs --daemon` dentro del servicio `frontend`. El daemon actualiza la base SQLite local al levantar el contenedor y repite el mismo horario contra `http://127.0.0.1:3000`. La lista cubre ENE, informalidad, IPC, IPP, estadísticas vitales, ENUSC, estadísticas policiales, energía, industria, permisos de edificación, comercio, turismo y supermercados.
-
+- [Arquitectura](ARCHITECTURE.md)
+- [Migración Python, PostgreSQL y Docker](docs/MIGRACION_PYTHON_DOCKER.md)
+- [Fuentes y transformaciones](DATA_SOURCES.md)
+- [Gobierno de datos](DATA_GOVERNANCE.md)
+- [Despliegue y recuperación](DEPLOYMENT.md)
+- [Contribución](CONTRIBUTING.md)
+- [Seguridad](SECURITY.md)
+- [Deuda técnica](TECHNICAL_DEBT.md)

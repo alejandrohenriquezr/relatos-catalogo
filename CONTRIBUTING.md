@@ -1,28 +1,62 @@
-# Contribución
+# Guía de contribución
 
-## Flujo de trabajo
+## Rama de trabajo
 
-1. Crear una rama descriptiva desde `main`.
-2. Realizar cambios pequeños y trazables.
-3. Agregar o actualizar pruebas.
-4. Ejecutar `npm run lint` y `npm test`.
-5. Abrir un pull request con evidencia.
-6. Obtener revisión técnica y, cuando corresponda, metodológica.
-7. Fusionar sólo con controles aprobados.
+La rama `version_python` contiene la integración local con Docker, FastAPI y PostgreSQL. Antes de modificarla:
+
+```bash
+git switch version_python
+git pull --ff-only origin version_python
+```
+
+Crear una rama breve para cada cambio y abrir un pull request hacia `version_python`. Los cambios destinados al sitio publicado deben revisarse por separado antes de integrarlos en la rama que use Sites.
+
+## Flujo recomendado
+
+1. Mantener cambios pequeños y trazables.
+2. Actualizar pruebas y documentación junto con el código.
+3. Ejecutar compilación y pruebas.
+4. Revisar que no existan secretos o datos personales.
+5. Abrir un pull request con objetivo, alcance y evidencia.
+6. Solicitar revisión técnica y, cuando corresponda, metodológica.
+7. Fusionar solo después de aprobar los controles.
+
+## Controles
+
+Frontend:
+
+```bash
+npm ci
+npm run build
+npm test
+npm run lint
+```
+
+Entorno Docker:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Verificar `http://localhost:3000`, `http://localhost:8000/health` y `http://localhost:8000/docs`.
 
 ## Convenciones
 
-- TypeScript para el código de aplicación.
-- Comentarios para explicar transformaciones o decisiones no evidentes.
-- Nombres de variables que reflejen concepto y unidad.
-- No duplicar fórmulas estadísticas entre componentes.
-- Mantener las URLs oficiales junto al transformador responsable.
+- TypeScript para la aplicación y Python para el backend y extractores.
+- Comentarios que expliquen cada bloque cuya intención no sea evidente.
+- Variables que indiquen concepto, unidad y nivel de desagregación.
+- Fórmulas estadísticas centralizadas en módulos de dominio.
+- URLs oficiales junto al transformador responsable.
+- Migraciones versionadas para cada cambio de esquema.
+- Documentación y mensajes dirigidos a usuarios en español.
 
 ## Criterios de aceptación
 
-- La página carga desde caché o fallback antes de verificar la fuente.
-- Las unidades, notas y períodos son correctos.
-- Los gráficos responden a teclado y dispositivos táctiles.
-- Las series y selectores mantienen transiciones coherentes.
-- No se incorporan secretos ni datos personales.
-- Las pruebas y la construcción finalizan correctamente.
+- La aplicación responde desde caché antes de verificar fuentes externas.
+- Períodos, unidades, notas y desagregaciones coinciden con la publicación oficial.
+- Las visualizaciones funcionan en escritorio y dispositivos móviles.
+- La construcción y las pruebas terminan correctamente.
+- Las migraciones son reproducibles y la carga inicial es idempotente.
+- No se incorporan credenciales, microdatos ni información personal.
