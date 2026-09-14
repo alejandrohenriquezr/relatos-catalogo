@@ -3,7 +3,7 @@ import { parseVitalStatistics } from "../../../lib/vital-statistics-data";
 import { sha256 } from "../../../lib/source-hash";
 
 const source =
-  "https://www.ine.gob.cl/docs/default-source/nacimientos-matrimonios-y-defunciones/cuadros-estadisticos/series-hist%C3%B3ricas/series-vitales-1992-2024(p).xlsx";
+  "https://www.ine.gob.cl/docs/default-source/nacimientos-matrimonios-y-defunciones/cuadros-estadisticos/series-hist%C3%B3ricas/series-vitales-1992-2025(p).xlsx";
 
 export async function GET(request: NextRequest) {
   const db = (globalThis as typeof globalThis & { __SITES_DB?: D1Database })
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       .bind(
         "vital-statistics",
         source,
-        signature,
+        hash,
         hash,
         null,
         JSON.stringify(payload),
