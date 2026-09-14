@@ -67,7 +67,7 @@ test("catalog home embeds only principal charts and limits stories to four", asy
   // Esta prueba evita que el Home vuelva a usar la página completa dentro de
   // los iframes y mantiene sincronizado el contador mediante stories.length.
   const source = await readFile(new URL("../app/CatalogHome.tsx", import.meta.url), "utf8");
-  assert.match(source, /`\/chart\/\$\{operation\}\?embed=1`/);
+  assert.match(source, /`\/chart\/\$\{operation\}\?embed=1&v=20260914-2`/);
   assert.match(source, /catalogGroups\.slice\(0, 4\)/);
   assert.match(source, /\{stories\.length\} temas/);
 });
@@ -83,4 +83,15 @@ test("business demography document is complete UTF-8 HTML", async () => {
   assert.ok(document.startsWith("<!DOCTYPE html>"));
   assert.match(document, /Número de empresas activas por año/);
   assert.ok(document.trimEnd().endsWith("</html>"));
+});
+
+test("frontend release marker matches Docker Compose healthcheck", async () => {
+  // La misma versión debe estar en el recurso público y en el healthcheck;
+  // una imagen antigua queda marcada como no saludable.
+  const version = JSON.parse(
+    await readFile(new URL("../public/build-version.json", import.meta.url), "utf8"),
+  );
+  const compose = await readFile(new URL("../docker-compose.yml", import.meta.url), "utf8");
+  assert.equal(version.homeStories, 4);
+  assert.match(compose, new RegExp(version.release, "g"));
 });
