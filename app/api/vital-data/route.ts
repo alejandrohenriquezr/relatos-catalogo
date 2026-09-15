@@ -5,6 +5,22 @@ import { sha256 } from "../../../lib/source-hash";
 const source =
   "https://www.ine.gob.cl/docs/default-source/nacimientos-matrimonios-y-defunciones/cuadros-estadisticos/series-hist%C3%B3ricas/series-vitales-1992-2025(p).xlsx";
 
+/** Reintenta respuestas transitorias del servidor del INE antes de usar la caché. */
+async function downloadOfficialSource() {
+  let lastStatus = 0;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const response = await fetch(source, {
+      redirect: "follow",
+      cache: "no-store",
+      headers: { accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "user-agent": "INE-Relatos/1.0" },
+    });
+    if (response.ok) return response;
+    lastStatus = response.status;
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+  }
+  throw new Error(`No fue posible descargar la fuente (HTTP ${lastStatus})`);
+}
+
 export async function GET(request: NextRequest) {
   const db = (globalThis as typeof globalThis & { __SITES_DB?: D1Database })
     .__SITES_DB;
@@ -26,11 +42,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ...JSON.parse(cached.payload_json), cache: { status: "cached", checkedAt: cached.checked_at, updatedAt: cached.updated_at } }, { headers: { "Cache-Control": "no-store" } });
   try {
     const now = new Date().toISOString();
-    const download = await fetch(source, {
-      redirect: "follow",
-      headers: { "user-agent": "INE-Relatos/1.0" },
-    });
-    if (!download.ok) throw new Error("No fue posible descargar la fuente");
+    const download = await downloadOfficialSource();
     const bytes = await download.arrayBuffer();
     const hash = await sha256(bytes);
     const metadata = { url: source, hash };
