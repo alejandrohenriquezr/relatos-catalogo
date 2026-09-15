@@ -10134,7 +10134,7 @@ function LaborPopulationDendrogram({
   );
 }
 
-function AnalysisPage({ initialView }: { initialView: SiteDestination }) {
+export function AnalysisPage({ initialView }: { initialView: SiteDestination }) {
   const principalOnly = usePrincipalChartMode();
   // La serie y el período visible deben nacer de la misma copia persistida.
   // Así la ENE no pinta primero el período fijo de respaldo al recargar.
