@@ -4,6 +4,8 @@ import { sha256 } from "../../../lib/source-hash";
 
 const KIND="enusc", CHUNK_SIZE=400_000;
 const headers={"Cache-Control":"no-store"};
+/** Reintenta respuestas 5xx transitorias sin reemplazar una caché válida. */
+async function downloadOfficialSource(){let lastStatus=0;for(let attempt=1;attempt<=3;attempt++){const response=await fetch(ENUSC_OFFICIAL_SOURCE,{redirect:"follow",cache:"no-store",headers:{accept:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","user-agent":"INE-Relatos/1.0"}});if(response.ok)return response;lastStatus=response.status;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,attempt*1500));}throw new Error(`No fue posible descargar la planilla ENUSC (HTTP ${lastStatus})`);}
 async function readPayload(db:D1Database,cached:Record<string,string>){
   const pointer=JSON.parse(cached.payload_json) as {revision:string;chunks:number};
   if(!pointer.revision) return cached.payload_json;
@@ -20,7 +22,7 @@ export async function GET(request:NextRequest){
   if(cached&&request.nextUrl.searchParams.get("refresh")!=="1")try{return NextResponse.json(JSON.parse(await readPayload(db,cached)),{headers});}catch{}
   try{
     const now=new Date().toISOString();
-    const response=await fetch(ENUSC_OFFICIAL_SOURCE,{redirect:"follow",headers:{"user-agent":"INE-Relatos/1.0"}}); if(!response.ok) throw new Error(`No fue posible descargar la planilla ENUSC (HTTP ${response.status})`);
+    const response=await downloadOfficialSource();
     const source={url:ENUSC_OFFICIAL_SOURCE,lastModified:response.headers.get("last-modified"),etag:response.headers.get("etag"),size:response.headers.get("content-length")};
     const bytes=await response.arrayBuffer(), hash=await sha256(bytes);
     if(cached?.source_last_modified===hash){const payload=JSON.parse(await readPayload(db,cached));await db.prepare("UPDATE economic_source_cache SET checked_at = ? WHERE kind = ?").bind(now,KIND).run();return NextResponse.json({...payload,cache:{status:"shared",checkedAt:now,updatedAt:cached.updated_at}},{headers});}
