@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 type Cell = string | number | null;
 type Row = Cell[];
 
-const SOURCE = "series-vitales-1992-2024(p).xlsx";
+const SOURCE = "series-vitales-1992-2025(p).xlsx";
 const AGE_LABELS = [
   "Menores de 15",
   "15-19",
