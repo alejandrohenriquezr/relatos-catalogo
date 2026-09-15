@@ -1,11 +1,12 @@
 name: Actualizar cachés de operaciones estadísticas
 
 on:
-  # GitHub aplica estas expresiones en la zona horaria indicada, incluido DST.
+  # Horario de Chile: 08:01, 08:06, ..., 09:56 y 10:01,
+  # únicamente de lunes a viernes. La zona horaria aplica el cambio DST.
   schedule:
-    - cron: "*/5 8 * * *"
+    - cron: "1-56/5 8-9 * * 1-5"
       timezone: "America/Santiago"
-    - cron: "0-10/5 9 * * *"
+    - cron: "1 10 * * 1-5"
       timezone: "America/Santiago"
   workflow_dispatch:
     inputs:
@@ -17,7 +18,7 @@ on:
 permissions:
   contents: read
 
-# Evita solapamientos si una descarga oficial tarda más de cinco minutos.
+# Evita que dos revisiones modifiquen las cachés al mismo tiempo.
 concurrency:
   group: relatos-cache-refresh
   cancel-in-progress: false
@@ -29,18 +30,21 @@ jobs:
     timeout-minutes: 12
 
     steps:
-      # El programa compartido también es el que utiliza Docker localmente.
-      - name: Obtener código
+      # Los eventos programados solo nacen desde la rama predeterminada.
+      # El checkout explícito garantiza que se ejecute el código de version_python.
+      - name: Obtener código de version_python
         uses: actions/checkout@v4
+        with:
+          ref: version_python
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22.13.0"
 
-      # El sitio es público. El token queda como opción para instalaciones
-      # privadas, pero no es necesario para el despliegue público actual.
-      - name: Actualizar todas las cachés
+      # Cada endpoint compara la fuente oficial con la caché compartida y solo
+      # conserva datos nuevos válidos; una fuente fallida no borra la caché anterior.
+      - name: Revisar fuentes INE y actualizar todas las cachés
         env:
           CACHE_REFRESH_BASE_URL: ${{ inputs.base_url || 'https://relatos-estadisticos-v2.alhen1970.chatgpt.site' }}
           CACHE_REFRESH_TIMEZONE: "America/Santiago"
