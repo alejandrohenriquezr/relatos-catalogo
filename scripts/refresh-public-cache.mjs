@@ -69,9 +69,7 @@ async function refreshOperation(operation) {
       if (payload?.error) throw new Error(String(payload.error));
 
       const status = cacheStatus(payload);
-      if (status === "stale") throw new Error("la fuente oficial no pudo verificarse; se conservó la caché anterior");
-
-      return { name: operation.name, status };
+      return { name: operation.name, status, warning: status === "stale" };
     } catch (error) {
       lastError = error;
       if (attempt < retryCount) await sleep(3_000 * attempt);
@@ -93,7 +91,8 @@ async function refreshAll() {
 
     results.forEach((result, index) => {
       if (result.status === "fulfilled") {
-        console.log(`[cache] OK ${result.value.name}: ${result.value.status}`);
+        const level = result.value.warning ? "WARN" : "OK";
+        console.log(`[cache] ${level} ${result.value.name}: ${result.value.status}`);
       } else {
         const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
         failures.push(message);
