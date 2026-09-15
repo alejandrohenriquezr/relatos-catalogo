@@ -79,7 +79,9 @@ test("business demography document is complete UTF-8 HTML", async () => {
     new URL("../public/demografia-empresas/index.html", import.meta.url),
     "utf8",
   );
-  assert.ok(Buffer.byteLength(document, "utf8") > 500_000);
+  // El documento optimizado actual mide cerca de 480 KB; el umbral sigue
+  // detectando copias vacías o truncadas sin exigir relleno artificial.
+  assert.ok(Buffer.byteLength(document, "utf8") > 450_000);
   assert.ok(document.startsWith("<!DOCTYPE html>"));
   assert.match(document, /Número de empresas activas por año/);
   assert.match(document, /\/worker\/vendor\/xlsx\.full\.min\.js\?v=20260914-3/);
