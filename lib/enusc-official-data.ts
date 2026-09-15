@@ -14,30 +14,50 @@ const theme = (variable:string) => {
 const number = (value:unknown) => typeof value === "number" && Number.isFinite(value) ? Math.round(value * 1e8) / 1e8 : null;
 const rows = (sheet:XLSX.WorkSheet) => XLSX.utils.sheet_to_json<unknown[]>(sheet,{header:1,raw:true,defval:null});
 
+/** Genera el código estable usado por la interfaz para cada desagregación. */
+const variableCode = (indicator: string, disaggregation: unknown, order: number) => {
+  const suffixes: Record<string, string> = {
+    sexo: "SEX",
+    "tramo etario": "AGE",
+    nse: "NSE",
+  };
+  const key = String(disaggregation ?? "").trim().toLowerCase();
+  return key ? `${indicator}_${suffixes[key] ?? `C${order}`}` : indicator;
+};
+
 export function parseEnuscWorkbook(buffer:ArrayBuffer){
   const workbook=XLSX.read(buffer,{type:"array"});
   const indexRows=rows(workbook.Sheets["Índice"]);
-  const metadata=indexRows.slice(8).filter(row=>Number.isInteger(row[0])).map(row=>{
-    const variable=String(row[1]);
-    return {order:row[0],variable,title:String(row[2]).trim(),type:row[3],level:row[4],disaggregation:row[5],weight:row[6],filter:row[7],sample:row[8],quality:{national:number(row[9]),nationalDisaggregated:number(row[10]),regional:number(row[11]),regionalDisaggregated:number(row[12])},theme:theme(variable)};
+  const metadata=indexRows.slice(2).filter(row=>Number.isInteger(row[0]) && row[4]).map(row=>{
+    const order=Number(row[0]), indicator=String(row[4]).trim();
+    const variable=variableCode(indicator,row[2],order);
+    return {order,variable,title:String(row[1]).trim(),type:null,level:row[3],disaggregation:row[2],weight:null,filter:null,sample:null,quality:{national:null,nationalDisaggregated:null,regional:null,regionalDisaggregated:null},theme:theme(variable)};
   });
   const tabulations:Record<string,unknown[]>={};
   for(const item of metadata){
-    const sheetRows=rows(workbook.Sheets[item.variable]);
-    const headers=sheetRows[3] || [];
-    const categoryColumn=headers[1] === "Categoría";
+    const sheet=workbook.Sheets[`Cuadro ${item.order}`];
+    if(!sheet) continue;
+    const sheetRows=rows(sheet);
+    const headerIndex=sheetRows.findIndex(row=>String(row?.[0] ?? "").trim().toUpperCase()==="REGIÓN");
+    if(headerIndex<0) continue;
+    const headers=sheetRows[headerIndex] || [];
+    const categoryColumn=String(headers[1] ?? "").trim().toUpperCase()==="CATEGORÍA";
     const groups:{label:string;column:number}[]=[];
-    for(let column=categoryColumn?2:1;column<headers.length;column+=4) if(headers[column]!=null) groups.push({label:String(headers[column]),column});
+    for(let column=categoryColumn?2:1;column<headers.length;column+=4){
+      const label=String(headers[column] ?? "").trim();
+      if(label) groups.push({label:label[0]+label.slice(1).toLowerCase(),column});
+    }
     const records=[];
-    for(const row of sheetRows.slice(4)){
-      if(row?.[0]==null) continue;
+    for(const row of sheetRows.slice(headerIndex+1)){
+      const region=String(row?.[0] ?? "").trim();
+      if(!region || region.toUpperCase()==="NOTAS") continue;
       const estimates=[];
       for(const group of groups){
         const estimate=number(row[group.column]); if(estimate===null) continue;
         const rawNote=row[group.column+3];
         estimates.push({group:group.label,estimate,lower:number(row[group.column+1]),upper:number(row[group.column+2]),note:rawNote==null||rawNote===""?null:String(rawNote).trim()});
       }
-      if(estimates.length) records.push({region:String(row[0]).trim(),category:categoryColumn&&row[1]!=null?String(row[1]).trim():null,estimates});
+      if(estimates.length) records.push({region,category:categoryColumn&&row[1]!=null?String(row[1]).trim():null,estimates});
     }
     tabulations[item.variable]=records;
   }
