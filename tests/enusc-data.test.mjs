@@ -12,7 +12,8 @@ const map = JSON.parse(
   ),
 );
 
-test("ENUSC incluye los 286 tabulados del índice", () => {
+test("ENUSC 2025 incluye los 286 tabulados del índice", () => {
+  assert.equal(data.year, 2025);
   assert.equal(data.metadata.length, 286);
   assert.equal(Object.keys(data.tabulations).length, 286);
   for (const meta of data.metadata) {

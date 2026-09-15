@@ -68,8 +68,8 @@ test("catalog home embeds only principal charts and limits stories to four", asy
   // los iframes y mantiene sincronizado el contador mediante stories.length.
   const source = await readFile(new URL("../app/CatalogHome.tsx", import.meta.url), "utf8");
   assert.match(source, /`\/chart\/\$\{operation\}\?embed=1&v=20260914-3`/);
-  assert.match(source, /catalogGroups\.slice\(0, 4\)/);
-  assert.match(source, /\{stories\.length\} temas/);
+  assert.match(source, /latest\.slice\(1, 5\)/);
+  assert.match(source, /\{stories\.length\} historias/);
 });
 
 test("business demography document is complete UTF-8 HTML", async () => {

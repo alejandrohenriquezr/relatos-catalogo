@@ -8699,6 +8699,36 @@ export function PolicePage({
 
 const ENUSC_SOURCE =
   "https://www.ine.gob.cl/docs/default-source/seguridad-ciudadana/cuadros-estadisticos/2025/tabulados-regionales---enusc-2025.xlsx";
+const ENUSC_REQUIRED_VARIABLES = [
+  "VH_DC_NSE",
+  "PAD_SEX",
+  "PADB_SEX",
+  "PCOS_SEX",
+  "PED_SEX",
+  "EV_CONFIA_CCH_SEX",
+] as const;
+
+/** Evita que una caché de otra edición de ENUSC rompa la página de análisis. */
+const isCompatibleEnuscData = (value: unknown): value is EnuscData => {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<EnuscData>;
+  return Boolean(
+    Array.isArray(candidate.metadata) &&
+      candidate.themes &&
+      candidate.tabulations &&
+      candidate.qualityNotes &&
+      ENUSC_REQUIRED_VARIABLES.every(
+        (variable) =>
+          Array.isArray(candidate.tabulations?.[variable]) &&
+          candidate.tabulations[variable].length > 0,
+      ),
+  );
+};
+/** Distingue la copia editorial compacta del explorador completo. */
+const isCompleteEnuscData = (value: EnuscData) =>
+  value.year === 2025 &&
+  value.metadata.length >= 286 &&
+  Object.keys(value.tabulations).length >= 286;
 const enuscPercent = (value: number) =>
   `${(value * 100).toFixed(1).replace(".", ",")}%`;
 const enuscLabel = (label: string) =>
@@ -9137,11 +9167,18 @@ function EnuscPage({
   onPolice: () => void;
 }) {
   const principalOnly = usePrincipalChartMode();
+  const cachedEnusc = useMemo(() => readPublicCache<EnuscData>("enusc"), []);
   const [data, setData] = useState<EnuscData>(
-      () => readPublicCache<EnuscData>("enusc") ?? (enuscInitialRaw as EnuscData),
+      () => {
+        return isCompatibleEnuscData(cachedEnusc)
+          ? cachedEnusc
+          : (enuscInitialRaw as EnuscData);
+      },
     ),
-    // La copia pública completa permite renderizar antes de consultar D1.
-    [fullDataReady, setFullDataReady] = useState(true),
+    // La historia aparece de inmediato; el explorador completo llega después.
+    [fullDataReady, setFullDataReady] = useState(
+      () => isCompatibleEnuscData(cachedEnusc) && isCompleteEnuscData(cachedEnusc),
+    ),
     [error, setError] = useState(false),
     [regionalVariable, setRegionalVariable] = useState("PAD_SEX"),
     [gapVariable, setGapVariable] = useState("PCOS_SEX"),
@@ -9157,16 +9194,16 @@ function EnuscPage({
       .then((payload) => {
         if (active) {
           setData(payload);
-          writePublicCache("enusc", payload);
-          setFullDataReady(true);
-          void fetch("/api/enusc-data?refresh=1", { cache: "no-store" })
-            .then((response) => (response.ok ? response.json() : null))
-            .then((updated) => {
-              if (active && updated?.cache?.status === "updated") {
-                setData(updated as EnuscData);
-                writePublicCache("enusc", updated);
-              }
-            });
+          setFullDataReady(isCompleteEnuscData(payload));
+        }
+        // Se actualiza incluso si D1 contenía una edición incompatible.
+        return fetch("/api/enusc-data?refresh=1", { cache: "no-store" });
+      })
+      .then((response) => (response?.ok ? response.json() : null))
+      .then((updated) => {
+        if (active && isCompatibleEnuscData(updated)) {
+          setData(updated as EnuscData);
+          setFullDataReady(isCompleteEnuscData(updated));
         }
       })
       .catch(() => active && setError(true));
@@ -9174,8 +9211,6 @@ function EnuscPage({
       active = false;
     };
   }, []);
-  if (!fullDataReady && !error)
-    return <main className="data-loading" aria-busy="true">Cargando datos oficiales…</main>;
   const meta = (variable: string) =>
       data.metadata.find((item) => item.variable === variable)!,
     national = (variable: string, group = "Total") => {
@@ -9369,6 +9404,7 @@ function EnuscPage({
                   Inseguridad al caminar de noche
                 </option>
                 <option value="PED_SEX">Expectativa de victimización</option>
+                <option value="VP_DC_SEX">Personas victimizadas</option>
                 <option value="VP_DV_SEX">
                   Victimización por delitos violentos
                 </option>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SiteDestination } from "./SectionHeader";
+import { sortByOfficialPublication } from "../lib/catalog-latest";
 import catalogLatestSnapshot from "../public/catalog-latest.json";
 import "./catalog.css";
 
@@ -60,7 +61,19 @@ const refreshEndpoints = [
 
 async function readLatest(): Promise<Latest[]> {
   const response = await fetch("/api/catalog-latest", { cache: "no-store" });
-  return response.ok ? response.json() : [];
+  if (!response.ok) return [];
+  const runtime = await response.json() as Latest[];
+  const runtimeByOperation = new Map(runtime.map((entry) => [entry.operation, entry]));
+
+  // Se conserva la fecha oficial verificada cuando D1 contiene una firma SHA
+  // usada para detectar cambios, ya que esa firma no es una fecha publicable.
+  return sortByOfficialPublication((catalogLatestSnapshot as Latest[]).map((snapshot) => ({
+    ...snapshot,
+    ...(runtimeByOperation.get(snapshot.operation) ?? {}),
+    latestPeriod: Number.isFinite(Date.parse(runtimeByOperation.get(snapshot.operation)?.latestPeriod ?? ""))
+      ? runtimeByOperation.get(snapshot.operation)?.latestPeriod ?? snapshot.latestPeriod
+      : snapshot.latestPeriod,
+  })));
 }
 
 async function refreshAllCaches() {
@@ -114,7 +127,7 @@ const dateText = (date: string | null) => date ? new Date(date).toLocaleDateStri
 export default function CatalogHome({ onNavigate }: { onNavigate: (destination: SiteDestination) => void }) {
   const [selectedTopic, setSelectedTopic] = useState<number | null>(null);
   // La copia publicada evita una portada vacía mientras se lee la caché D1.
-  const [latest, setLatest] = useState<Latest[]>(catalogLatestSnapshot as Latest[]);
+  const [latest, setLatest] = useState<Latest[]>(sortByOfficialPublication(catalogLatestSnapshot as Latest[]));
   const refreshStarted = useRef(false);
   useEffect(() => {
     let active = true;
@@ -137,19 +150,20 @@ export default function CatalogHome({ onNavigate }: { onNavigate: (destination: 
     }
     return () => { active = false; };
   }, []);
-  const all = useMemo(() => catalogGroups.flatMap((group) => group.items.map(([operation, label]) => ({ operation, label, topic: group.title }))), []);
   const featured = latest[0];
-  const stories = catalogGroups.slice(0, 4).map((group) => {
-    const item = latest.find((entry) => entry.topic === group.title && entry.operation !== featured.operation) ?? all.find((entry) => entry.topic === group.title && entry.operation !== featured.operation);
-    return item ? { group, item } : null;
-  }).filter(Boolean) as { group: Group; item: Latest | { operation: SiteDestination; label: string; topic: string } }[];
+  // La portada aplica el mismo criterio que la planilla de verificación:
+  // fecha Last-Modified del archivo oficial, sin cupos editoriales por tema.
+  const stories = latest.slice(1, 5).map((item) => ({
+    item,
+    group: catalogGroups.find((group) => group.title === item.topic)!,
+  }));
   return <main id="catalog-home">
     <header className="catalog-mast"><div aria-hidden="true" /></header>
     <section className="catalog-hero"><div className="catalog-eyebrow">Explora las estadísticas de Chile</div><h1>¿Qué quieres conocer<br />del país que habitamos?</h1><p>Encuentra una historia, entiende su contexto y explora la operación estadística que la sustenta.</p></section>
-    <section className="catalog-feature"><div className="catalog-feature-copy"><div className="catalog-eyebrow">Publicación más reciente · {dateText(featured.updatedAt)}</div><h2>{featured.label}</h2><p className="catalog-feature-analysis">{principalAnalysis[featured.operation]}</p><button className="catalog-link" onClick={() => onNavigate(featured.operation)}>Ir a la operación <span>→</span></button></div><div className="catalog-operation-chart"><OperationChart operation={featured.operation} label={featured.label} /></div></section>
+    <section className="catalog-feature"><div className="catalog-feature-copy"><div className="catalog-eyebrow">Publicación más reciente · {dateText(featured.latestPeriod ?? featured.updatedAt)}</div><h2>{featured.label}</h2><p className="catalog-feature-analysis">{principalAnalysis[featured.operation]}</p><button className="catalog-link" onClick={() => onNavigate(featured.operation)}>Ir a la operación <span>→</span></button></div><div className="catalog-operation-chart"><OperationChart operation={featured.operation} label={featured.label} /></div></section>
     <div className="catalog-content">
       <aside aria-label="Temas estadísticos"><div className="catalog-eyebrow">Explorar por materia</div><div className="catalog-topic-browser"><div className="catalog-topics">{catalogGroups.map((group, index) => <div className="catalog-topic-row" key={group.title}><button onClick={() => setSelectedTopic(selectedTopic === index ? null : index)} aria-expanded={selectedTopic === index}>{group.title}<span>{group.items.length}</span></button>{selectedTopic === index && <section className="catalog-operation-menu" aria-label={`Operaciones de ${group.title}`}>{group.items.map(([operation, label]) => <button className="catalog-entry" key={operation} onClick={() => onNavigate(operation)}>{label}<span>→</span></button>)}</section>}</div>)}</div></div></aside>
-      <section className="catalog-stories"><div className="catalog-result-head"><h2>Historias por tema actualizadas recientemente</h2><span>{stories.length} temas</span></div><div className="catalog-groups">{stories.map(({ group, item }) => <article key={group.title}><div className="catalog-eyebrow">{group.title} · {dateText(latest.find((entry) => entry.topic === group.title)?.updatedAt ?? null)}</div><h3>{item.label}</h3><p>{group.question}</p><div className="catalog-operation-chart"><OperationChart operation={item.operation} label={item.label} /></div><button className="catalog-link" onClick={() => onNavigate(item.operation)}>Explorar relato <span>→</span></button></article>)}</div></section>
+      <section className="catalog-stories"><div className="catalog-result-head"><h2>Historias por tema actualizadas recientemente</h2><span>{stories.length} historias</span></div><div className="catalog-groups">{stories.map(({ group, item }) => <article key={item.operation}><div className="catalog-eyebrow">{group.title} · {dateText(item.latestPeriod ?? item.updatedAt)}</div><h3>{item.label}</h3><p>{group.question}</p><div className="catalog-operation-chart"><OperationChart operation={item.operation} label={item.label} /></div><button className="catalog-link" onClick={() => onNavigate(item.operation)}>Explorar relato <span>→</span></button></article>)}</div></section>
     </div>
     <footer>Las cifras y documentos publicados en <a href="https://www.ine.gob.cl" target="_blank" rel="noreferrer">ine.gob.cl</a> constituyen la fuente oficial. <a href="/admin">Administración</a></footer>
   </main>;
