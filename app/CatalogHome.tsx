@@ -103,7 +103,9 @@ function OperationChart({ operation, label }: { operation: SiteDestination; labe
       mutations?.disconnect();
     };
   }, [operation]);
-  const src = operation === "businessDemography" ? "/demografia-empresas/index.html?chart=principal" : `/?chart=${operation}`;
+  const src = operation === "businessDemography"
+    ? "/demografia-empresas/index.html?chart=principal"
+    : `/chart/${operation}?embed=1&v=20260914-3`;
   return <iframe ref={frame} className="operation-chart-frame" src={src} title={`Gráfico principal: ${label}`} style={{ height }} />;
 }
 
@@ -137,7 +139,7 @@ export default function CatalogHome({ onNavigate }: { onNavigate: (destination: 
   }, []);
   const all = useMemo(() => catalogGroups.flatMap((group) => group.items.map(([operation, label]) => ({ operation, label, topic: group.title }))), []);
   const featured = latest[0];
-  const stories = catalogGroups.slice(0, 6).map((group) => {
+  const stories = catalogGroups.slice(0, 4).map((group) => {
     const item = latest.find((entry) => entry.topic === group.title && entry.operation !== featured.operation) ?? all.find((entry) => entry.topic === group.title && entry.operation !== featured.operation);
     return item ? { group, item } : null;
   }).filter(Boolean) as { group: Group; item: Latest | { operation: SiteDestination; label: string; topic: string } }[];
