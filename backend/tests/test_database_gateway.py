@@ -49,3 +49,15 @@ def test_accepts_union_across_cache_tables() -> None:
     )
     assert "UNION ALL" in sql
     assert bindings == {}
+
+
+def test_accepts_postgresql_upsert_on_an_allowed_cache_table() -> None:
+    """No confunde `DO UPDATE SET` con una referencia a otra tabla."""
+
+    sql, bindings = prepare_statement(
+        "INSERT INTO economic_source_cache (kind, payload_json) VALUES (?, ?) "
+        "ON CONFLICT(kind) DO UPDATE SET payload_json=excluded.payload_json",
+        ["ene", "{}"],
+    )
+    assert "VALUES (:p0, :p1)" in sql
+    assert bindings == {"p0": "ene", "p1": "{}"}

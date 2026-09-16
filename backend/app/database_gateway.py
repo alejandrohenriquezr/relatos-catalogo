@@ -23,10 +23,15 @@ ALLOWED_TABLES = {
     "tourism_source_meta_v2",
 }
 ALLOWED_PREFIXES = ("SELECT", "INSERT", "UPDATE", "DELETE")
-TABLE_REFERENCE = re.compile(
-    r"\b(?:FROM|INTO|UPDATE|JOIN|DELETE\s+FROM)\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+READ_TABLE_REFERENCE = re.compile(
+    r"\b(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)",
     re.IGNORECASE,
 )
+WRITE_TABLE_REFERENCE = {
+    "INSERT": re.compile(r"^INSERT\s+INTO\s+([a-zA-Z_][a-zA-Z0-9_]*)", re.IGNORECASE),
+    "UPDATE": re.compile(r"^UPDATE\s+([a-zA-Z_][a-zA-Z0-9_]*)", re.IGNORECASE),
+    "DELETE": re.compile(r"^DELETE\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)", re.IGNORECASE),
+}
 
 
 class DatabaseRequest(BaseModel):
@@ -90,7 +95,14 @@ def prepare_statement(sql: str, params: list[Any]) -> tuple[str, dict[str, Any]]
     if prefix not in ALLOWED_PREFIXES:
         raise HTTPException(status_code=400, detail="Solo se permiten SELECT, INSERT, UPDATE y DELETE.")
 
-    referenced = {match.lower() for match in TABLE_REFERENCE.findall(normalized)}
+    # Las lecturas pueden incluir UNION o JOIN y, por tanto, varias tablas. En
+    # las escrituras se valida exclusivamente el destino inicial. Esto evita
+    # interpretar el `DO UPDATE SET` de un UPSERT como una tabla llamada `set`.
+    if prefix == "SELECT":
+        referenced = {match.lower() for match in READ_TABLE_REFERENCE.findall(normalized)}
+    else:
+        match = WRITE_TABLE_REFERENCE[prefix].match(normalized)
+        referenced = {match.group(1).lower()} if match else set()
     if not referenced or not referenced.issubset(ALLOWED_TABLES):
         raise HTTPException(status_code=400, detail="La consulta referencia una tabla no autorizada.")
 
