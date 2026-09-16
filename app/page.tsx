@@ -11913,6 +11913,9 @@ export function AnalysisPage({ initialView }: { initialView: SiteDestination }) 
 
 
 export default function Home() {
+  // El home conserva como máximo siete referencias temporales para evitar
+  // superposición; la primera y la última siempre permanecen visibles.
+  const HOME_MAX_X_LABELS = 7;
   const [route, setRoute] = useState<{ view: SiteDestination; chart: boolean } | null>(null);
   useEffect(() => {
     const operation = new URLSearchParams(window.location.search).get("chart");
@@ -11926,9 +11929,11 @@ export default function Home() {
     const compactXLabels = () => {
       root.querySelectorAll("svg").forEach((svg) => {
         const labels = Array.from(svg.querySelectorAll(".x-label, .econ-x-label, .ipc-x-label, .ipp-division-label, text[transform*='rotate(-90)']"));
-        if (labels.length < 13) return;
+        if (labels.length <= HOME_MAX_X_LABELS) return;
+        const step = Math.ceil((labels.length - 1) / (HOME_MAX_X_LABELS - 1));
         labels.forEach((label, index) => {
-          (label as HTMLElement).style.display = index % 2 === 0 || index === labels.length - 1 ? "" : "none";
+          (label as HTMLElement).style.display =
+            index % step === 0 || index === labels.length - 1 ? "" : "none";
         });
       });
     };
@@ -11947,6 +11952,8 @@ export default function Home() {
         .principal-chart-document svg{max-width:100%;width:100%;height:auto;min-width:0!important}
         .principal-chart-document .birth-chart{overflow-x:hidden!important}
         .principal-chart-document .birth-window-controls{min-width:0!important}
+        /* Los gráficos resumidos del home no permiten cambiar su período. */
+        .principal-chart-document .ipp-time-levels{display:none!important}
         /* El viewBox de los gráficos reduce los píxeles CSS; 14px produce
            aproximadamente el tamaño visual de 10px en pantalla. */
         .principal-chart-document svg text{font-size:14px!important}
@@ -11957,7 +11964,6 @@ export default function Home() {
         .principal-chart-document .ipp-division-label{font-size:14px!important}
         .principal-chart-document .chart-head{flex-wrap:wrap;gap:10px}
         .principal-chart-document .data-loading{min-height:180px}
-        .principal-chart-document .ipp-time-reading{display:none}
       `}</style>
       <AnalysisPage initialView={route.view}/>
     </div> : <AnalysisPage initialView="home"/>}

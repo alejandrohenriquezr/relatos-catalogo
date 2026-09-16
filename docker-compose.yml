@@ -63,6 +63,22 @@ services:
     networks:
       - relatos_net
 
+  cache-refresh:
+    # Usa la misma imagen que el frontend y activa las rutas de actualización;
+    # el frontend escribe los resultados en su SQLite persistente.
+    image: relatos-catalogo-frontend:version-python-20260914-3
+    restart: unless-stopped
+    command: ["node", "scripts/refresh-public-cache.mjs", "--daemon"]
+    environment:
+      CACHE_REFRESH_BASE_URL: http://frontend:3000
+      CACHE_REFRESH_TIMEZONE: America/Santiago
+      CACHE_REFRESH_ON_START: "true"
+    depends_on:
+      frontend:
+        condition: service_healthy
+    networks:
+      - relatos_net
+
 volumes:
   postgres_data:
   frontend_cache:

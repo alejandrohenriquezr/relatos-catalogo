@@ -112,6 +112,7 @@ function chileClock(date = new Date()) {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    weekday: "short",
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
@@ -119,13 +120,15 @@ function chileClock(date = new Date()) {
   return Object.fromEntries(parts.map(({ type, value }) => [type, value]));
 }
 
-/** Limita el daemon local a 08:00–09:10 y una ejecución por bloque de 5 minutos. */
+/** Ejecuta de lunes a viernes a los minutos 01, 06, …, 56 y a las 10:01. */
 function scheduledSlot(date = new Date()) {
   const clock = chileClock(date);
   const hour = Number(clock.hour);
   const minute = Number(clock.minute);
-  const insideWindow = hour === 8 || (hour === 9 && minute <= 10);
-  if (!insideWindow || minute % 5 !== 0) return null;
+  const workingDay = clock.weekday !== "Sat" && clock.weekday !== "Sun";
+  const insideWindow = ((hour === 8 || hour === 9) && minute % 5 === 1) ||
+    (hour === 10 && minute === 1);
+  if (!workingDay || !insideWindow) return null;
   return `${clock.year}-${clock.month}-${clock.day}T${clock.hour}:${clock.minute}`;
 }
 

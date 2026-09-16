@@ -70,6 +70,13 @@ test("catalog home embeds only principal charts and limits stories to four", asy
   assert.match(source, /`\/chart\/\$\{operation\}\?embed=1&v=20260914-3`/);
   assert.match(source, /latest\.slice\(1, 5\)/);
   assert.match(source, /\{stories\.length\} historias/);
+  assert.match(source, /className="catalog-overview"/);
+  assert.match(source, /catalog-overview[\s\S]*<aside[\s\S]*catalog-feature/);
+  const styles = await readFile(new URL("../app/catalog.css", import.meta.url), "utf8");
+  assert.match(styles, /\.catalog-content\{display:block;max-width:1600px/);
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /HOME_MAX_X_LABELS = 7/);
+  assert.match(page, /\.principal-chart-document \.ipp-time-levels\{display:none!important\}/);
 });
 
 test("business demography document is complete UTF-8 HTML", async () => {
@@ -122,4 +129,15 @@ test("frontend release marker matches Docker Compose healthcheck", async () => {
   const compose = await readFile(new URL("../docker-compose.yml", import.meta.url), "utf8");
   assert.equal(version.homeStories, 4);
   assert.match(compose, new RegExp(version.release, "g"));
+});
+
+test("Docker schedules weekday SQLite cache refreshes through the frontend", async () => {
+  const compose = await readFile(new URL("../docker-compose.yml", import.meta.url), "utf8");
+  const script = await readFile(new URL("../scripts/refresh-public-cache.mjs", import.meta.url), "utf8");
+  assert.match(compose, /cache-refresh:/);
+  assert.match(compose, /refresh-public-cache\.mjs", "--daemon"/);
+  assert.match(compose, /CACHE_REFRESH_BASE_URL: http:\/\/frontend:3000/);
+  assert.match(script, /clock\.weekday !== "Sat" && clock\.weekday !== "Sun"/);
+  assert.match(script, /hour === 10 && minute === 1/);
+  assert.match(script, /minute % 5 === 1/);
 });

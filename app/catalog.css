@@ -49,3 +49,15 @@
 #catalog-home .catalog-operation-menu h3{margin:8px 0 12px}
 #catalog-home .catalog-operation-menu .catalog-entry{align-items:center}
 @media(max-width:900px){#catalog-home .catalog-operation-menu{position:static;width:100%;margin-top:12px;box-shadow:none}}
+
+/* La navegación y la publicación reciente comparten la misma franja. El texto
+   de la publicación precede al gráfico y las historias usan todo el ancho. */
+#catalog-home .catalog-overview{display:grid;grid-template-columns:220px minmax(0,1fr);gap:28px;max-width:1600px;margin:auto;padding:42px 30px;border-bottom:1px solid #dce3eb;align-items:start}
+#catalog-home .catalog-overview aside{display:block;border-right:1px solid #dde4ec;padding-right:20px;min-width:0}
+#catalog-home .catalog-feature{display:block;max-width:none;margin:0;padding:0;border:0;min-width:0}
+#catalog-home .catalog-feature-copy{padding:0;max-width:none}
+#catalog-home .catalog-feature-analysis{max-width:920px}
+#catalog-home .catalog-feature .catalog-operation-chart{margin:24px 0 0}
+#catalog-home .catalog-content{display:block;max-width:1600px;padding:38px 30px}
+#catalog-home .catalog-content aside{display:none}
+@media(max-width:900px){#catalog-home .catalog-overview{grid-template-columns:1fr;padding:30px 20px}#catalog-home .catalog-overview aside{border-right:0;border-bottom:1px solid #dde4ec;padding:0 0 20px}#catalog-home .catalog-content{padding:30px 20px}}
