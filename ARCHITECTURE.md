@@ -45,7 +45,7 @@ flowchart TD
   F --> C["Caché SQLite local"]
 ```
 
-El backend usa el host interno `db`, no `localhost`. El volumen `postgres_data` conserva PostgreSQL y `frontend_cache` conserva la caché del frontend.
+El backend usa el host interno `db`, no `localhost`. El volumen `postgres_data` conserva PostgreSQL y `frontend_cache` conserva la caché del frontend. El esquema efectivo, sus relaciones lógicas y los comandos de inspección están documentados en [docs/SQLITE_CACHE.md](docs/SQLITE_CACHE.md).
 
 ## CMS, SDMX y MCP
 

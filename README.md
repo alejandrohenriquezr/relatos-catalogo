@@ -133,6 +133,7 @@ El archivo `.openai/hosting.json` identifica el proyecto Sites y la vinculación
 ## Documentación
 
 - [Arquitectura](ARCHITECTURE.md)
+- [Base SQLite de caché local](docs/SQLITE_CACHE.md)
 - [Migración Python, PostgreSQL y Docker](docs/MIGRACION_PYTHON_DOCKER.md)
 - [Fuentes y transformaciones](DATA_SOURCES.md)
 - [Gobierno de datos](DATA_GOVERNANCE.md)
