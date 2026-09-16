@@ -1,11 +1,18 @@
-"""Aplicación FastAPI para el backend migrado."""
+"""Aplicación FastAPI y acceso único a PostgreSQL."""
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+import hmac
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session, joinedload
 
 from .config import get_settings
+from .database_gateway import (
+    DatabaseRequest,
+    DatabaseResponse,
+    execute_database_request,
+)
 from .database import get_db
 from .models import SourceCache, StatisticalOperation
 from .schemas import CacheResponse, OperationResponse
@@ -26,10 +33,28 @@ app.add_middleware(
 
 
 @app.get("/health", tags=["sistema"])
-def health() -> dict[str, str]:
-    """Comprueba que el proceso de la API esté disponible."""
+def health(db: Session = Depends(get_db)) -> dict[str, str]:
+    """Comprueba el proceso de la API y su conexión a PostgreSQL."""
 
-    return {"status": "ok", "service": "relatos-estadisticos-backend"}
+    db.execute(text("SELECT 1"))
+    return {"status": "ok", "service": "relatos-estadisticos-backend", "database": "postgresql"}
+
+
+@app.post(
+    f"{settings.api_prefix}/internal/database",
+    response_model=DatabaseResponse,
+    include_in_schema=False,
+)
+def internal_database(
+    request: DatabaseRequest,
+    x_internal_token: str = Header(default=""),
+    db: Session = Depends(get_db),
+) -> DatabaseResponse:
+    """Ejecuta consultas estáticas de Vinext sin exponer PostgreSQL al navegador."""
+
+    if not hmac.compare_digest(x_internal_token, settings.internal_api_token):
+        raise HTTPException(status_code=401, detail="Credencial interna inválida.")
+    return execute_database_request(request, db)
 
 
 @app.get(f"{settings.api_prefix}/catalog", response_model=list[OperationResponse], tags=["catálogo"])

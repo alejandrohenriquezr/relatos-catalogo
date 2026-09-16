@@ -7,7 +7,7 @@ Las vulnerabilidades no deben publicarse en incidencias abiertas. Deben informar
 ## Reglas
 
 - No versionar tokens, contraseñas, cookies, claves privadas ni archivos `.env`.
-- No subir exportaciones de D1, volúmenes PostgreSQL ni bases SQLite locales.
+- No subir exportaciones ni volúmenes PostgreSQL.
 - No incorporar microdatos o identificadores personales.
 - Cambiar la contraseña de ejemplo antes de usar el entorno fuera del equipo local.
 - Limitar CORS a los orígenes necesarios.
@@ -17,11 +17,11 @@ Las vulnerabilidades no deben publicarse en incidencias abiertas. Deben informar
 
 ## Secretos de automatización
 
-`SITES_BYPASS_TOKEN` debe almacenarse como secreto de GitHub Actions. Solo se envía en el encabezado de autorización y no debe aparecer en registros, archivos o documentación con su valor real.
+`INTERNAL_API_TOKEN` debe almacenarse en el gestor de secretos institucional. Solo se envía entre Vinext y FastAPI y no debe aparecer en registros, archivos o documentación con su valor real. El endpoint `/api/v1/internal/database` no debe exponerse en el proxy público.
 
 ## Bases de datos
 
-D1 y PostgreSQL deben recibir privilegios mínimos. Las copias de respaldo y archivos de diagnóstico deben tratarse como información interna aunque contengan datos agregados.
+PostgreSQL debe recibir privilegios mínimos. Las copias de respaldo y archivos de diagnóstico deben tratarse como información interna aunque contengan datos agregados.
 
 ## Cambios de alcance
 

@@ -1,13 +1,8 @@
 # Arquitectura del proyecto
 
-## Superficies de ejecución
+## Superficie de ejecución
 
-El repositorio mantiene dos superficies que comparten el frontend y la lógica estadística:
-
-1. **Sites:** React/Vinext se construye como Cloudflare Worker. La caché y la configuración editorial se guardan en D1 mediante la vinculación `DB`.
-2. **Docker local:** el frontend se ejecuta en el puerto 3000, FastAPI en el 8000 y PostgreSQL 16 en el 5432. Los servicios se conectan mediante la red `relatos_net`.
-
-Actualizar la rama `version_python` no modifica el sitio publicado. Sites solo cambia cuando se guarda y despliega expresamente una nueva versión.
+`version_postgresql` corresponde al despliegue Docker institucional. El frontend se ejecuta en el puerto 3000, FastAPI en el 8000 y PostgreSQL 16 en el 5432. Los servicios se conectan mediante la red `relatos_net`. Esta rama no usa Sites, D1 ni SQLite.
 
 ## Componentes
 
@@ -17,9 +12,8 @@ Actualizar la rama `version_python` no modifica el sitio publicado. Sites solo c
 | API Vinext | `app/api/` | Datos estadísticos, CMS, SDMX y MCP |
 | Dominio | `lib/` | Transformación, validación y modelos |
 | Worker | `worker/index.ts` | Entrada compatible con Cloudflare |
-| Persistencia Sites | `db/`, `drizzle/` | Esquema y migraciones D1 |
-| Backend local | `backend/app/` | API REST FastAPI y acceso SQLAlchemy |
-| Migraciones locales | `backend/migrations/` | Evolución del esquema PostgreSQL |
+| Acceso a datos | `backend/app/` | API REST, gateway interno y SQLAlchemy |
+| Migraciones | `backend/migrations/` | Evolución exclusiva del esquema PostgreSQL |
 | Datos iniciales | `public/` | Cachés recuperables, planillas y activos |
 | Automatización | `scripts/`, `.github/workflows/` | Extracción, actualización y controles |
 
@@ -40,12 +34,12 @@ Este diseño evita que una indisponibilidad temporal de `ine.gob.cl` deje la ope
 ```mermaid
 flowchart TD
   U["Navegador :3000"] --> F["Frontend Vinext"]
-  F --> A["FastAPI :8000"]
+  F -->|"HTTPS interno autenticado"| A["FastAPI :8000"]
+  R["Actualizador programado"] --> F
   A --> P["PostgreSQL 16"]
-  F --> C["Caché SQLite local"]
 ```
 
-El backend usa el host interno `db`, no `localhost`. El volumen `postgres_data` conserva PostgreSQL y `frontend_cache` conserva la caché del frontend. El esquema efectivo, sus relaciones lógicas y los comandos de inspección están documentados en [docs/SQLITE_CACHE.md](docs/SQLITE_CACHE.md).
+El backend usa el host interno `db`, no `localhost`. El volumen `postgres_data` conserva toda la información. Vinext usa `lib/postgres-d1.ts` solo como adaptador de compatibilidad de sus rutas: no ejecuta conexiones directas y envía consultas estáticas al gateway autenticado de FastAPI. El esquema está documentado en [docs/POSTGRESQL_DATABASE.md](docs/POSTGRESQL_DATABASE.md).
 
 ## CMS, SDMX y MCP
 
@@ -57,6 +51,6 @@ El backend usa el host interno `db`, no `localhost`. El volumen `postgres_data` 
 ## Límites
 
 - Los transformadores dependen de la estructura de archivos oficiales.
-- D1 y PostgreSQL son implementaciones distintas; no existe sincronización automática entre ellas.
+- El endpoint interno de base de datos no debe publicarse mediante el proxy institucional.
 - Los archivos de `public/` son datos iniciales, no la fuente estadística maestra.
 - Incorporar una operación requiere revisión metodológica, editorial y técnica.

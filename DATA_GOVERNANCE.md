@@ -36,7 +36,7 @@ Cada serie debe conservar:
 
 ## Persistencia
 
-D1 almacena la caché y configuración del sitio Sites. PostgreSQL almacena el catálogo y metadatos del backend local. La caché SQLite del contenedor frontend acelera la carga local. Ninguna de estas bases sustituye a las fuentes estadísticas oficiales.
+PostgreSQL almacena el catálogo, la configuración editorial, la metadata y las cachés validadas. Es la única persistencia de `version_postgresql`, pero no sustituye a las fuentes estadísticas oficiales.
 
 ## Gestión de cambios
 

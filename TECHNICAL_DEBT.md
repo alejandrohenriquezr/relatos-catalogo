@@ -8,7 +8,7 @@ La aplicación cuenta con compilación y pruebas funcionales. El análisis está
 - acceso a referencias durante el renderizado;
 - tipos `any` en rutas y transformadores específicos;
 - dependencias faltantes en hooks y directivas no utilizadas;
-- coexistencia temporal de D1, PostgreSQL y SQLite sin una capa común de repositorios;
+- compatibilidad temporal con la interfaz D1 dentro de las rutas Vinext, resuelta por un adaptador HTTP hacia FastAPI/PostgreSQL;
 - rutas Vinext y FastAPI que todavía no tienen equivalencia completa.
 
 Por esta razón, lint puede ser informativo mientras compilación y pruebas siguen siendo obligatorias.
@@ -24,4 +24,4 @@ Por esta razón, lint puede ser informativo mientras compilación y pruebas sigu
 
 ## Regla de trabajo
 
-Cada corrección debe incluir una prueba de regresión y realizarse en un cambio separado de nuevas funcionalidades. La actualización de documentación no debe modificar archivos ejecutables ni disparar por sí sola una publicación en Sites.
+Cada corrección debe incluir una prueba de regresión y realizarse en un cambio separado de nuevas funcionalidades. La actualización de documentación no debe modificar archivos ejecutables ni desplegar contenedores por sí sola.

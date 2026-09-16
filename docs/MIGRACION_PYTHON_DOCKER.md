@@ -1,25 +1,25 @@
-# Migración a Python, PostgreSQL y Docker
+# Versión institucional Python, PostgreSQL y Docker
 
-La rama `version_python` agrega un backend FastAPI y una base PostgreSQL para el desarrollo local. El frontend React/Vinext se conserva. Esta rama no reemplaza ni publica automáticamente el sitio de Sites.
+La rama `version_postgresql` conserva React/Vinext y usa FastAPI como único acceso a PostgreSQL. SQLite y D1 no forman parte de esta versión.
 
 ## Servicios
 
 | Servicio | Puerto | Función | Persistencia |
 | --- | --- | --- | --- |
-| `frontend` | 3000 | Interfaz Vinext y rutas actuales | Volumen `frontend_cache` |
+| `frontend` | 3000 | Interfaz Vinext y transformadores | Sin estado |
 | `backend` | 8000 | API REST FastAPI | PostgreSQL |
 | `db` | 5432 | PostgreSQL 16 | Volumen `postgres_data` |
+| `cache-refresh` | interno | Revisión programada | Sin estado |
 
 ## Inicio en Windows
 
 Requisitos: Git, Docker Desktop y WSL 2.
 
 ```powershell
-git clone https://github.com/alejandrohenriquezr/relatos-catalogo.git
+git clone --branch version_postgresql --single-branch https://github.com/alejandrohenriquezr/relatos-catalogo.git
 Set-Location relatos-catalogo
-git switch version_python
 Copy-Item .env.example .env
-docker compose up --build
+docker compose up --build -d
 ```
 
 Cambiar `POSTGRES_PASSWORD` en `.env` antes de usar el entorno fuera del desarrollo local. El archivo `.env` no debe subirse.
@@ -44,6 +44,8 @@ Abrir:
 | `DATABASE_URL` | Conexión SQLAlchemy | Host interno `db` |
 | `CORS_ORIGINS` | Orígenes autorizados | `http://localhost:3000` |
 | `RUN_SEED` | Ejecuta carga inicial idempotente | `true` |
+| `ENVIRONMENT` | Perfil y validación de secretos | `development` local; `production` en INE |
+| `INTERNAL_API_TOKEN` | Autentica Vinext ante FastAPI | Debe reemplazarse |
 
 Aunque cambie el puerto publicado, `DATABASE_URL` debe conservar el host `db` y el puerto interno 5432.
 
@@ -56,7 +58,7 @@ docker compose logs -f backend
 docker compose down
 ```
 
-`docker compose down` conserva los volúmenes. `docker compose down -v` elimina PostgreSQL y la caché local.
+`docker compose down` conserva PostgreSQL. `docker compose down -v` elimina la base completa.
 
 ## Migraciones
 
@@ -80,14 +82,14 @@ docker compose up --build
 | `GET` | `/api/v1/cache/{operation}` | Metadatos de caché |
 | `GET` | `/docs` | Swagger UI |
 
-La integración con FastAPI es progresiva. Las rutas Vinext existentes continúan disponibles mientras no exista equivalencia verificada en el backend.
+Las rutas Vinext conservan sus contratos, pero toda persistencia pasa por el gateway interno autenticado de FastAPI. El gateway solo admite consultas preparadas sobre una lista cerrada de tablas.
 
 ## Sincronización con GitHub
 
 ```powershell
-git switch version_python
-git pull --ff-only origin version_python
+git switch version_postgresql
+git pull --ff-only origin version_postgresql
 docker compose up --build
 ```
 
-Este flujo actualiza el repositorio y reconstruye los contenedores. No despliega Sites.
+Este flujo actualiza el repositorio institucional y reconstruye los contenedores.

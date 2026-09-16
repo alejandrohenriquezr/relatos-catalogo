@@ -36,7 +36,7 @@ test.afterEach(() => {
     .__SITES_DB;
 });
 
-test("Supermercados responde desde D1 antes de consultar al INE", async () => {
+test("Supermercados responde desde PostgreSQL antes de consultar al INE", async () => {
   let externalCalls = 0;
   globalThis.fetch = async () => {
     externalCalls++;
@@ -71,7 +71,7 @@ test("Supermercados responde desde D1 antes de consultar al INE", async () => {
   assert.equal(externalCalls, 0);
 });
 
-test("Turismo responde desde D1 antes de consultar al INE", async () => {
+test("Turismo responde desde PostgreSQL antes de consultar al INE", async () => {
   let externalCalls = 0;
   globalThis.fetch = async () => {
     externalCalls++;
@@ -104,7 +104,7 @@ test("Turismo responde desde D1 antes de consultar al INE", async () => {
   assert.equal(externalCalls, 0);
 });
 
-test("Comercio responde desde D1 antes de consultar al INE", async () => {
+test("Comercio responde desde PostgreSQL antes de consultar al INE", async () => {
   let externalCalls = 0;
   globalThis.fetch = async () => {
     externalCalls++;
@@ -126,7 +126,7 @@ test("Comercio responde desde D1 antes de consultar al INE", async () => {
   assert.equal(externalCalls, 0);
 });
 
-test("IPP responde desde D1 antes de consultar al INE", async () => {
+test("IPP responde desde PostgreSQL antes de consultar al INE", async () => {
   let externalCalls = 0;
   globalThis.fetch = async () => {
     externalCalls++;

@@ -1,7 +1,7 @@
 const PREFIX = "relatos-public-cache:";
 
 // Recupera de forma síncrona la última copia compartida que este navegador
-// recibió desde D1. Así la recarga no vuelve al JSON antiguo del despliegue.
+// recibió desde PostgreSQL. Así la recarga no vuelve al JSON antiguo del despliegue.
 export function readPublicCache<T>(key: string): T | null {
   if (typeof window === "undefined") return null;
   try {
@@ -19,7 +19,7 @@ export function writePublicCache(key: string, value: unknown) {
   try {
     // Las series regionales de la ENE pueden superar la cuota habitual de
     // localStorage. El primer período y los gráficos nacionales caben sin ese
-    // bloque; la serie regional completa se recupera inmediatamente desde D1.
+    // bloque; la serie regional completa se recupera inmediatamente desde PostgreSQL.
     // Antes se intentaba guardar el objeto completo, fallaba silenciosamente y
     // cada recarga volvía a la copia antigua incluida en el despliegue.
     const persistedValue =

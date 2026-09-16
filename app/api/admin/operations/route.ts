@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 const table = `CREATE TABLE IF NOT EXISTS statistical_operation_config (operation TEXT PRIMARY KEY, label TEXT NOT NULL, analysis TEXT NOT NULL DEFAULT 'on', publications TEXT NOT NULL DEFAULT 'off', documentation TEXT NOT NULL DEFAULT 'off', databases TEXT NOT NULL DEFAULT 'off', resources TEXT NOT NULL DEFAULT 'off', updated_at TEXT NOT NULL, updated_by TEXT NOT NULL)`;
 
 export async function PUT(request: NextRequest) {
-  // El sitio es privado para el propietario; el formulario no siempre conserva
-  // los encabezados de identidad de ChatGPT en una llamada fetch.
+  // La persistencia institucional se resuelve en FastAPI/PostgreSQL mediante
+  // el adaptador interno instalado por el Worker.
   const db = (globalThis as typeof globalThis & { __SITES_DB?: D1Database }).__SITES_DB;
-  if (!db) return NextResponse.json({ error: "La base de datos D1 del CMS no está disponible en este despliegue." }, { status: 503 });
+  if (!db) return NextResponse.json({ error: "PostgreSQL no está disponible mediante FastAPI." }, { status: 503 });
   try {
     const body = await request.json() as Record<string, unknown>;
     const operation = String(body.operation ?? "");
@@ -19,6 +19,6 @@ export async function PUT(request: NextRequest) {
       .bind(operation, label, onOff("analysis", true), onOff("publications", false), onOff("documentation", false), onOff("databases", false), onOff("resources", false), now, "site-owner").run();
     return NextResponse.json({ ok: true, operation, updatedAt: now });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Error de persistencia en D1" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Error de persistencia en PostgreSQL" }, { status: 500 });
   }
 }

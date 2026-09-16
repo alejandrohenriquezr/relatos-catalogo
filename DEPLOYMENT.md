@@ -6,15 +6,15 @@
 | --- | --- | --- |
 | GitHub | Commit o push | Actualiza el código versionado |
 | Docker local | `docker compose up --build` | Actualiza `localhost:3000` y servicios locales |
-| Sites | Guardar y publicar una versión | Actualiza el sitio productivo |
+| Docker institucional | Construir y recrear servicios | Actualiza la instalación INE |
 
-Un push a `version_python` no despliega automáticamente Sites ni modifica un contenedor local que ya está ejecutándose.
+Un push a `version_postgresql` no modifica automáticamente una instalación que ya está ejecutándose.
 
 ## Operación local
 
 ```powershell
-git switch version_python
-git pull --ff-only origin version_python
+git switch version_postgresql
+git pull --ff-only origin version_postgresql
 Copy-Item .env.example .env
 docker compose up --build
 ```
@@ -42,19 +42,19 @@ npm test
 npm run lint
 ```
 
-La compilación debe generar `dist/server/index.js` y `dist/.openai/hosting.json`. Cuando existan migraciones D1, deben incluirse en `dist/.openai/drizzle/`.
+La compilación debe generar `dist/server/index.js`. Las migraciones PostgreSQL se validan y ejecutan con Alembic desde el contenedor backend.
 
-## Publicación en Sites
+## Despliegue institucional
 
-El proyecto se identifica mediante `.openai/hosting.json` y usa la vinculación D1 `DB`. La publicación debe partir de un commit verificado y una versión guardada. La configuración, los datos D1 y el acceso existente deben conservarse salvo instrucción expresa.
+El despliegue debe usar Docker Compose o la adaptación equivalente aprobada por T.I. FastAPI es la única capa de acceso a PostgreSQL y el endpoint interno no debe publicarse mediante el proxy inverso. Consulte [docs/TI_DEPLOYMENT_RUNBOOK.md](docs/TI_DEPLOYMENT_RUNBOOK.md).
 
 ## Recuperación
 
 1. Identificar el último commit y despliegue válidos.
 2. Restaurar el código en una rama de recuperación.
 3. Ejecutar compilación y pruebas.
-4. Guardar y publicar una nueva versión.
+4. Reconstruir y recrear los contenedores con la versión validada.
 5. Comprobar páginas principales y rutas API.
 6. Registrar causa, alcance y corrección.
 
-El repositorio contiene esquemas, migraciones y datos iniciales, pero no una exportación de D1 productiva ni del volumen PostgreSQL local.
+El repositorio contiene esquemas, migraciones y datos iniciales, pero no exportaciones ni volúmenes PostgreSQL.

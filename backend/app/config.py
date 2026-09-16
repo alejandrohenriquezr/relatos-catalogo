@@ -1,7 +1,9 @@
 """Configuración centralizada leída desde variables de entorno."""
 
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +17,8 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     app_name: str = "Relatos Estadísticos API"
     run_seed: bool = True
+    internal_api_token: str = "change-this-in-production"
+    environment: Literal["development", "test", "production"] = "development"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -28,6 +32,14 @@ class Settings(BaseSettings):
         """Convierte CORS_ORIGINS separado por comas en una lista utilizable."""
 
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def reject_default_production_secrets(self) -> "Settings":
+        """Impide iniciar producción con la credencial incluida como ejemplo."""
+
+        if self.environment == "production" and self.internal_api_token == "change-this-in-production":
+            raise ValueError("INTERNAL_API_TOKEN debe cambiarse en producción")
+        return self
 
 
 @lru_cache

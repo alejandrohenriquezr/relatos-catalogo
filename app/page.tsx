@@ -3307,13 +3307,13 @@ function IppPage({
     };
     const synchronize = async () => {
       // La copia incorporada se ve desde el primer render. Luego se recupera
-      // D1 sin tocar ine.gob.cl y, en una segunda petición, se verifica si la
+      // PostgreSQL sin tocar ine.gob.cl y, en una segunda petición, se verifica si la
       // fuente oficial cambió durante el día.
       try {
         apply(await read("/api/ipp-data"));
         setCacheReady(true);
       } catch {
-        // Si D1 aún no fue inicializada, la copia incorporada sigue visible.
+        // Si PostgreSQL aún no fue inicializado, la copia incorporada sigue visible.
       }
       try {
         const refreshed = await read("/api/ipp-data?refresh=1");
@@ -9196,7 +9196,7 @@ function EnuscPage({
           setData(payload);
           setFullDataReady(isCompleteEnuscData(payload));
         }
-        // Se actualiza incluso si D1 contenía una edición incompatible.
+        // Se actualiza incluso si PostgreSQL contenía una edición incompatible.
         return fetch("/api/enusc-data?refresh=1", { cache: "no-store" });
       })
       .then((response) => (response?.ok ? response.json() : null))

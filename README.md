@@ -2,7 +2,7 @@
 
 Sitio del Instituto Nacional de Estadísticas de Chile para consultar resultados estadísticos, navegar por materias y operaciones, revisar análisis, descargar datos y consumir servicios SDMX.
 
-La rama `version_python` conserva el frontend React/Vinext y agrega un entorno local reproducible con FastAPI, PostgreSQL y Docker Compose. El sitio publicado en Sites utiliza Cloudflare Workers y D1; el entorno Docker es independiente y no modifica automáticamente el despliegue productivo.
+La rama `version_postgresql` es la entrega institucional para infraestructura INE. Conserva React/Vinext, usa FastAPI como única capa de acceso a datos y PostgreSQL 16 como única persistencia. No usa SQLite ni D1.
 
 ## Funcionalidades
 
@@ -18,8 +18,8 @@ La rama `version_python` conserva el frontend React/Vinext y agrega un entorno l
 
 | Superficie | Tecnología | Persistencia |
 | --- | --- | --- |
-| Sitio en Sites | React 19, TypeScript, Vinext, Cloudflare Worker | D1 |
-| Entorno local | Vinext en `:3000`, FastAPI en `:8000` | PostgreSQL 16 |
+| Frontend | React 19, TypeScript y Vinext en `:3000` | Sin estado |
+| Backend | FastAPI en `:8000` | PostgreSQL 16 |
 | Datos iniciales | JSON, XLSX y activos versionados en `public/` | Repositorio |
 | Actualización | Rutas API y scripts de verificación | Caché vigente |
 
@@ -27,7 +27,7 @@ La descripción detallada está en [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Requisitos
 
-### Docker, recomendado para `version_python`
+### Docker, requerido para `version_postgresql`
 
 - Git.
 - Docker Desktop con Docker Compose.
@@ -43,11 +43,10 @@ La descripción detallada está en [ARCHITECTURE.md](ARCHITECTURE.md).
 Desde PowerShell:
 
 ```powershell
-git clone https://github.com/alejandrohenriquezr/relatos-catalogo.git
+git clone --branch version_postgresql --single-branch https://github.com/alejandrohenriquezr/relatos-catalogo.git
 Set-Location relatos-catalogo
-git switch version_python
 Copy-Item .env.example .env
-docker compose up --build
+docker compose up --build -d
 ```
 
 Servicios disponibles:
@@ -63,7 +62,7 @@ Para detener sin borrar datos:
 docker compose down
 ```
 
-El comando `docker compose down -v` elimina la base PostgreSQL y la caché local; debe usarse solo cuando se quiera reiniciar los datos.
+El comando `docker compose down -v` elimina PostgreSQL y debe usarse solo cuando se quiera reiniciar deliberadamente todos los datos.
 
 ## Ejecución directa del frontend
 
@@ -91,8 +90,7 @@ El análisis estático conserva observaciones heredadas registradas en [TECHNICA
 | `lib/` | Transformadores, modelos y lógica de dominio |
 | `public/` | Activos, datos iniciales y archivos descargables |
 | `worker/` | Entrada del Cloudflare Worker |
-| `db/`, `drizzle/` | Esquema y migraciones D1 |
-| `backend/` | API FastAPI, SQLAlchemy, Alembic y carga inicial |
+| `backend/` | FastAPI, acceso PostgreSQL, SQLAlchemy, Alembic y carga inicial |
 | `scripts/` | Extracción, actualización de caché y validaciones |
 | `tests/` | Pruebas de caché, SDMX, MCP y HTML |
 | `docs/` | Migración Docker y contratos SDMX |
@@ -101,7 +99,7 @@ El análisis estático conserva observaciones heredadas registradas en [TECHNICA
 
 Las rutas consultan primero la última revisión válida. Después verifican la fuente oficial mediante hash y, cuando están disponibles, ETag, `Last-Modified` o tamaño. Una revisión nueva se publica solo después de transformar y validar los datos. Si la fuente no responde o cambia de estructura, se conserva la revisión anterior.
 
-El workflow de GitHub Actions usa el secreto `SITES_BYPASS_TOKEN` para actualizar el sitio restringido. El contenedor frontend ejecuta el mismo proceso contra `http://127.0.0.1:3000` y guarda la caché local en un volumen.
+El servicio `cache-refresh` ejecuta el proceso contra el frontend. Las rutas Vinext transforman los archivos y persisten exclusivamente a través de FastAPI en PostgreSQL. El volumen `postgres_data` conserva el catálogo, la configuración y las cachés.
 
 ## API SDMX
 
@@ -128,12 +126,14 @@ Los contratos están documentados en [docs/sdmx/README.md](docs/sdmx/README.md) 
 
 Copiar `.env.example` como `.env` y cambiar la contraseña de PostgreSQL. No se deben versionar `.env`, tokens, cookies, credenciales ni exportaciones de las bases productivas.
 
-El archivo `.openai/hosting.json` identifica el proyecto Sites y la vinculación lógica D1 `DB`. Modificar el repositorio no publica el sitio por sí mismo.
+`INTERNAL_API_TOKEN` autentica la comunicación servidor a servidor entre Vinext y FastAPI. Debe reemplazarse junto con `POSTGRES_PASSWORD` y mantenerse fuera del repositorio.
 
 ## Documentación
 
 - [Arquitectura](ARCHITECTURE.md)
-- [Base SQLite de caché local](docs/SQLITE_CACHE.md)
+- [Base PostgreSQL y diccionario de datos](docs/POSTGRESQL_DATABASE.md)
+- [Manual de despliegue para T.I.](docs/TI_DEPLOYMENT_RUNBOOK.md)
+- [Importación única desde SQLite](docs/SQLITE_TO_POSTGRESQL.md)
 - [Migración Python, PostgreSQL y Docker](docs/MIGRACION_PYTHON_DOCKER.md)
 - [Fuentes y transformaciones](DATA_SOURCES.md)
 - [Gobierno de datos](DATA_GOVERNANCE.md)

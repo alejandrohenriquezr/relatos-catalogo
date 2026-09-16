@@ -18,7 +18,7 @@ export async function GET(request:NextRequest){
   const db=(globalThis as typeof globalThis & {__SITES_DB?:D1Database}).__SITES_DB;
   if(!db)return NextResponse.json({error:"La caché compartida aún no está disponible"},{status:503});
 
-  // Se fragmenta por hoja: el conjunto completo supera el límite de una celda de D1.
+  // Se fragmenta por hoja para acotar transferencias y lecturas de payloads grandes.
   await db.prepare("CREATE TABLE IF NOT EXISTS tourism_source_meta_v2 (id TEXT PRIMARY KEY, source_last_modified TEXT, source_etag TEXT, source_size TEXT, checked_at TEXT NOT NULL, updated_at TEXT NOT NULL, cache_key TEXT NOT NULL)").run();
   await db.prepare("CREATE TABLE IF NOT EXISTS tourism_payload_chunk_v2 (cache_key TEXT NOT NULL, sheet TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(cache_key,sheet))").run();
   const cached=await db.prepare("SELECT * FROM tourism_source_meta_v2 WHERE id='tourism'").first<MetaRow>();
@@ -31,7 +31,7 @@ export async function GET(request:NextRequest){
     const bytes=await file.arrayBuffer(),hash=await sha256(bytes);
     if(cached&&cached.source_last_modified===hash){const payload=await readCachedPayload(db,cached);if(payload){await db.prepare("UPDATE tourism_source_meta_v2 SET checked_at=? WHERE id='tourism'").bind(now).run();return NextResponse.json({...payload,source:{url:sourceUrl,checkedAt:now,cache:"shared"}},{headers:{"Cache-Control":"no-store"}});}}
     const payload=parseTourismWorkbook(bytes),cacheKey=now.replace(/[^0-9]/g,"");
-    // Cada escritura permanece bajo el límite SQLITE_TOOBIG; la metadata se actualiza solo al final.
+    // La metadata se actualiza solo después de guardar todas las hojas.
     for(const sheet of requiredSheets){await db.prepare("INSERT INTO tourism_payload_chunk_v2 (cache_key,sheet,payload_json) VALUES (?,?,?)").bind(cacheKey,sheet,JSON.stringify(payload.tables[sheet])).run();}
     await db.prepare("INSERT INTO tourism_source_meta_v2 (id,source_last_modified,source_etag,source_size,checked_at,updated_at,cache_key) VALUES ('tourism',?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET source_last_modified=excluded.source_last_modified,source_etag=excluded.source_etag,source_size=excluded.source_size,checked_at=excluded.checked_at,updated_at=excluded.updated_at,cache_key=excluded.cache_key").bind(hash,null,null,now,now,cacheKey).run();
     await db.prepare("DELETE FROM tourism_payload_chunk_v2 WHERE cache_key<>?").bind(cacheKey).run();

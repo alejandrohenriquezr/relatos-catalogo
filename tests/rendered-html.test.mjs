@@ -131,12 +131,17 @@ test("frontend release marker matches Docker Compose healthcheck", async () => {
   assert.match(compose, new RegExp(version.release, "g"));
 });
 
-test("Docker schedules weekday SQLite cache refreshes through the frontend", async () => {
+test("Docker schedules weekday PostgreSQL cache refreshes through FastAPI", async () => {
   const compose = await readFile(new URL("../docker-compose.yml", import.meta.url), "utf8");
   const script = await readFile(new URL("../scripts/refresh-public-cache.mjs", import.meta.url), "utf8");
+  const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
   assert.match(compose, /cache-refresh:/);
   assert.match(compose, /refresh-public-cache\.mjs", "--daemon"/);
   assert.match(compose, /CACHE_REFRESH_BASE_URL: http:\/\/frontend:3000/);
+  assert.match(compose, /INTERNAL_API_BASE_URL: http:\/\/backend:8000\/api\/v1/);
+  assert.doesNotMatch(compose, /LOCAL_D1_PATH|frontend_cache/);
+  assert.match(worker, /createPostgresDatabase/);
+  assert.doesNotMatch(worker, /createLocalD1|LOCAL_D1_PATH/);
   assert.match(script, /clock\.weekday !== "Sat" && clock\.weekday !== "Sun"/);
   assert.match(script, /hour === 10 && minute === 1/);
   assert.match(script, /minute % 5 === 1/);

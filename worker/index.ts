@@ -1,15 +1,13 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { createLocalD1 } from "../lib/local-d1";
+import { createPostgresDatabase } from "../lib/postgres-d1";
 
 interface Env {
-  // Cloudflare supplies these bindings in Sites. Vinext's local Node server
-  // does not inject them, so they are optional for Docker development.
   ASSETS?: Fetcher;
-  DB?: D1Database;
-  // Ruta del archivo SQLite que persiste la caché compartida en Docker.
-  LOCAL_D1_PATH?: string;
+  // FastAPI es el único acceso autorizado a PostgreSQL.
+  INTERNAL_API_BASE_URL?: string;
+  INTERNAL_API_TOKEN?: string;
   IMAGES?: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -28,7 +26,7 @@ interface ExecutionContext {
 // Cloudflare environment or execution context. These fallbacks keep public
 // pages renderable locally while real Sites deployments continue to provide
 // their bindings.
-let localDatabasePromise: Promise<D1Database> | null = null;
+let postgresDatabase: D1Database | null = null;
 
 const localExecutionContext: ExecutionContext = {
   waitUntil: () => undefined,
@@ -57,26 +55,15 @@ const worker = {
     env: Env = {},
     ctx: ExecutionContext = localExecutionContext,
   ): Promise<Response> {
-    // Sites usa D1; Docker crea un adaptador SQLite persistente con la misma
-    // interfaz para que todas las rutas sigan actualizando la caché local.
-    let database = env.DB;
-    // Vinext en Node puede invocar el Worker sin pasar un objeto env; en ese
-    // caso recupera la misma configuración desde las variables del proceso.
-    const localPath = env.LOCAL_D1_PATH ??
-      (typeof process !== "undefined" ? process.env.LOCAL_D1_PATH : undefined);
-    if (!database && localPath) {
-      try {
-        // Reutiliza una conexión por isolate para evitar bloqueos y fugas de
-        // descriptores cuando el Home dispara varias actualizaciones en paralelo.
-        localDatabasePromise ??= createLocalD1(localPath);
-        database = await localDatabasePromise;
-      } catch {
-        // Si el runtime no incluye node:sqlite, las rutas usarán su fallback.
-        localDatabasePromise = null;
-        database = undefined;
-      }
-    }
-    (globalThis as typeof globalThis & { __SITES_DB?: D1Database }).__SITES_DB = database;
+    // La rama institucional no usa D1 ni SQLite. Vinext conserva la interfaz
+    // de las rutas existentes, pero todas las consultas pasan por FastAPI.
+    const baseUrl = env.INTERNAL_API_BASE_URL ??
+      (typeof process !== "undefined" ? process.env.INTERNAL_API_BASE_URL : undefined);
+    const token = env.INTERNAL_API_TOKEN ??
+      (typeof process !== "undefined" ? process.env.INTERNAL_API_TOKEN : undefined);
+    if (baseUrl && token) postgresDatabase ??= createPostgresDatabase(baseUrl, token);
+    (globalThis as typeof globalThis & { __SITES_DB?: D1Database }).__SITES_DB =
+      postgresDatabase ?? undefined;
     const url = new URL(request.url);
 
     // Normaliza barras duplicadas para que enlaces copiados como "//api/..."

@@ -2,14 +2,14 @@
 
 ## Rama de trabajo
 
-La rama `version_python` contiene la integración local con Docker, FastAPI y PostgreSQL. Antes de modificarla:
+La rama `version_postgresql` contiene la entrega institucional con Docker, FastAPI y PostgreSQL. Antes de modificarla:
 
 ```bash
-git switch version_python
-git pull --ff-only origin version_python
+git switch version_postgresql
+git pull --ff-only origin version_postgresql
 ```
 
-Crear una rama breve para cada cambio y abrir un pull request hacia `version_python`. Los cambios destinados al sitio publicado deben revisarse por separado antes de integrarlos en la rama que use Sites.
+Crear una rama breve para cada cambio y abrir un pull request hacia `version_postgresql`. Las modificaciones de tablas requieren migración Alembic, actualización del diccionario y prueba de actualización sobre una base existente.
 
 ## Flujo recomendado
 

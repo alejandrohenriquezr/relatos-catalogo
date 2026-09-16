@@ -5,7 +5,7 @@ const table = `CREATE TABLE IF NOT EXISTS statistical_operation_config (operatio
 
 async function db() {
   const value = (globalThis as typeof globalThis & { __SITES_DB?: D1Database }).__SITES_DB;
-  if (!value) throw new Error("La caché compartida no está disponible");
+  if (!value) throw new Error("PostgreSQL no está disponible mediante FastAPI");
   await value.prepare(table).run();
   return value;
 }

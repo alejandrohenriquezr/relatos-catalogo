@@ -18,7 +18,7 @@ async function digest(buffer:ArrayBuffer){const bytes=await crypto.subtle.digest
 export async function GET(request:NextRequest){
   const db=(globalThis as typeof globalThis&{__SITES_DB?:D1Database}).__SITES_DB;
   if(!db){
-    // En Docker/Vinext no existe el binding D1 de Sites. Devuelve la copia
+    // Si FastAPI/PostgreSQL todavía no está disponible, devuelve la copia
     // validada incluida en el despliegue para que la ENE nunca quede bloqueada.
     return NextResponse.json({
       ...eneFallback,
